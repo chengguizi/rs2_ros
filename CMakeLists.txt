@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 2.8.9)
+project(rs2-interface)
+
+find_package(OpenCV REQUIRED)
+#message("OpenCV_LIBRARIES = ${OpenCV_LIBRARIES}")
+find_package(realsense2 REQUIRED)
+
+# get_cmake_property(_variableNames VARIABLES)
+# list (SORT _variableNames)
+# foreach (_variableName ${_variableNames})
+#     message(STATUS "${_variableName}=${${_variableName}}")
+# endforeach()
+
+# This section is a work-around for bad naming conventions in librealsense Config.cmake file
+if(realsense2_FOUND) # this is always true if the *Config.cmake file is present, even if it is empty!
+  #                                   v
+  list(APPEND realsense2_LIBRARIES    ${realsense2_LIBRARY})
+  #list(APPEND realsense2_INCLUDE_DIRS ${realsense_INCLUDE_DIR})
+  #                                   X
+else()
+  message("NOT founded!!")
+endif()
+
+set(CMAKE_CXX_STANDARD 11)  # enable C++11 standard
+# Set the output folder where your program will be created
+set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
+set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
+set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
+
+# include_directories(  # Not needed for CMake >= 2.8.11
+#   ${OpenCV_INCLUDE_DIRS} 
+#   ${realsense2_INCLUDE_DIRS}
+# )
+
+add_executable(rs2-interface src/main.cpp)
+
+target_link_libraries(rs2-interface 
+${OpenCV_LIBRARIES}
+${realsense2_LIBRARIES}
+)
