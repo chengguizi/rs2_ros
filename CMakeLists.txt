@@ -4,6 +4,7 @@ project(rs2-interface)
 find_package(OpenCV REQUIRED)
 #message("OpenCV_LIBRARIES = ${OpenCV_LIBRARIES}")
 find_package(realsense2 REQUIRED)
+find_package(Threads REQUIRED)
 
 # get_cmake_property(_variableNames VARIABLES)
 # list (SORT _variableNames)
@@ -27,14 +28,25 @@ set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-# include_directories(  # Not needed for CMake >= 2.8.11
-#   ${OpenCV_INCLUDE_DIRS} 
+include_directories(
+  src
+#   ${OpenCV_INCLUDE_DIRS} # Not needed for CMake >= 2.8.11
 #   ${realsense2_INCLUDE_DIRS}
-# )
+)
 
-add_executable(rs2-interface src/main.cpp)
+add_executable(rs2-interface 
+  src/main.cpp
+  src/irstereo.cpp
+)
+add_executable(rs2-test src/test.cpp)
 
 target_link_libraries(rs2-interface 
+${OpenCV_LIBRARIES}
+${realsense2_LIBRARIES}
+Threads::Threads
+)
+
+target_link_libraries(rs2-test 
 ${OpenCV_LIBRARIES}
 ${realsense2_LIBRARIES}
 )

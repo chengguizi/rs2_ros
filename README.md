@@ -12,3 +12,7 @@ Tested on Ubuntu 16.04, kernel 4.4, 4.10 & 4.13
 
 ## How to clean
 Simply remove all files from the ./build/ directory.
+
+## SDK References
+[API How To](https://github.com/IntelRealSense/librealsense/wiki/API-How-To)
+[OpenCV](https://github.com/IntelRealSense/librealsense/tree/master/wrappers/opencv)
