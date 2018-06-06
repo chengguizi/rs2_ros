@@ -1,9 +1,12 @@
 // ROS Node for Realsense D415 Streams
 // Cheng Huimin, June 2018
 //
-//
+// The dedicated Realsense interface to publish ROS topics, from the infrared stereo streams
 
 #include <iostream>
+#include <iomanip>
+
+
 #include <thread>
 #include <chrono>
 
@@ -13,27 +16,51 @@
 
 #include <opencv2/opencv.hpp>   // Include OpenCV API
 
+#include <ros/ros.h>
+
 struct irframe_t{
     cv::Mat left;
     cv::Mat right;
-    uint count;
+    uint64_t t;
+    uint64_t t_base;
+    uint64_t seq;
     std::mutex inProcess;
 }irframe;
 
-
-void stereoImageCallback(void* irleft, void* irright, const int w, const int h) // irleft and irright are in the heap, must be deleted after use
+// from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
+void stereoImageCallback(unsigned long long dev_time, void* irleft, void* irright, const int w, const int h, \
+    double tleft, double tright, unsigned long long seqleft, unsigned long long seqright) // irleft and irright are in the heap, must be deleted after use
 {
     if ( irframe.inProcess.try_lock())
     {
-        delete[] irframe.left.data; // will cause memory leak if this is not freed
-        irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);
-        delete[] irframe.right.data;
+        if (tleft != tright)
+            std::cerr << "ImageCallback(): stereo time sync inconsistent!" << std::endl;
+        irframe.t = tleft;
+        if (seqleft != seqright)
+            std::cerr << "ImageCallback(): stereo frame sequence sync inconsistent!" << std::endl;
+        irframe.seq = seqleft;
+
+        if (seqleft == 1)
+        {
+            irframe.t_base = dev_time;
+            ROS_INFO_STREAM("ImageCallback(): First frame successfully captured!");
+        }
+        else
+        {
+           delete[] irframe.left.data; // will cause memory leak if this is not freed
+           delete[] irframe.right.data;
+        }
+        
+        irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);    
         irframe.right = cv::Mat(cv::Size(w, h), CV_8UC1, irright, cv::Mat::AUTO_STEP);
-        irframe.count++;
+        irframe.t = dev_time - irframe.t_base;
+
+        std::cout << irframe.t << std::endl;
         irframe.inProcess.unlock();
+
     }else
     {
-        std::cout<< "Missed Frame(" << irframe.count << ")" << std::endl;
+        std::cout<< "Missed Frame(" << irframe.seq << ")" << std::endl;
     }
 }
 
@@ -52,22 +79,29 @@ int main(int argc, char * argv[]) try
 
     sys->registerCallback(stereoImageCallback);
 
+    // ros initialisation
+    ros::init(argc, argv, "rs2");
+    ros::NodeHandle nh;
+
+    ROS_INFO_STREAM("hello world from ROS!");
+
 
     sys->startPipe();
 
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)
     {
-        if (frame_idx < irframe.count)
+        if (frame_idx < irframe.seq)
         {   
             irframe.inProcess.lock();
 
             // Update the window with new data
             cv::imshow(window_name_l, irframe.left);
             cv::imshow(window_name_r, irframe.right);
-            frame_idx = irframe.count;
+            frame_idx = irframe.seq;
             irframe.inProcess.unlock();
         }
+        ros::spinOnce();
     }
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(5000));

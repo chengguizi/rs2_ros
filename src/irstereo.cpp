@@ -162,14 +162,35 @@ void IrStereoDriver::process()
     int w = dummy.get_width();
     int h = dummy.get_height();
 
+    switch (dummy.get_frame_timestamp_domain())
+    {
+        case RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME:
+            std::cout<< "frame_timestamp_domain = RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME" << std::endl;
+        break;
+        case RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK:
+            std::cout<< "frame_timestamp_domain = RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK" << std::endl;
+        break;
+        default:
+            std::cout<< "frame_timestamp_domain = (error)" << std::endl;
+        break;
+    }
+
     std::cout << "Process Starts..." << std::endl;
 
     while(_isStreaming)
     {
         rs2::frameset dataset = _pipe->wait_for_frames(500); // Wait for next set of frames from the camera
         
+        auto systime = std::chrono::system_clock::now();
+        unsigned long long time = systime.time_since_epoch().count();
+
         rs2::video_frame frame_left = dataset.get_infrared_frame(1);
+        double time_left = frame_left.get_timestamp()/1000;
+        unsigned long long seq_left = frame_left.get_frame_number();
+
         rs2::video_frame frame_right = dataset.get_infrared_frame(2);
+        double time_right = frame_right.get_timestamp()/1000;
+        unsigned long long seq_right = frame_right.get_frame_number();
         
         void* irleft = new char[w*h];
         memcpy(irleft,frame_left.get_data(),w*h);
@@ -179,7 +200,8 @@ void IrStereoDriver::process()
 
         for (callbackType* cb : _cblist)
         {
-            (*cb)(irleft,irright,w,h);
+            (*cb)(time, irleft,irright,w,h,time_left,time_right,seq_left,seq_right);
+            // time_left and time_right is time since boot of the realsense hardware
         }
     }
     std::cout << "Process Ended..." << std::endl;

@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/rs2-interface",
+            "program": "${workspaceFolder}/../../devel/lib/rs2-interface/rs2-interface",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

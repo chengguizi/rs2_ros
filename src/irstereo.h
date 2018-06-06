@@ -17,7 +17,8 @@
 class IrStereoDriver {
 
 public:
-    typedef const std::function<void(void*,void*, int, int)> callbackType; // left image data, right image data
+    typedef const std::function<void(unsigned long long, void*,void*, int, int, double, double, unsigned long long, unsigned long long)> callbackType; 
+                        // time since epoch, left & right image data, width, height, hardware time left & right, hardware sequence left & right
     IrStereoDriver();
     ~IrStereoDriver();
     void setOption(rs2_option option, float value);
