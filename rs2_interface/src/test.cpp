@@ -6,39 +6,31 @@
 #include <iostream>
 #include <iomanip>
 
-#include <csignal>
 
 #include <thread>
 #include <chrono>
 
 #include <mutex>
-#include <condition_variable>
 
 #include "rs2_interface/irstereo_interface.hpp"
 
 #include <opencv2/opencv.hpp>   // Include OpenCV API
-
-#include <ros/ros.h>
 
 struct irframe_t{
     cv::Mat left;
     cv::Mat right;
     uint64_t t;
     uint64_t t_base;
-    uint64_t t_callback;
     uint64_t seq;
     std::mutex inProcess;
-    std::condition_variable cv;
 }irframe;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
-void stereoImageCallback(uint64_t t_pipe , void* irleft, void* irright, const int w, const int h, \
-    double tleft, double tright, uint64_t seqleft, uint64_t seqright) // irleft and irright are in the heap, must be deleted after use
+void stereoImageCallback(unsigned long long dev_time, void* irleft, void* irright, const int w, const int h, \
+    double tleft, double tright, unsigned long long seqleft, unsigned long long seqright) // irleft and irright are in the heap, must be deleted after use
 {
     if ( irframe.inProcess.try_lock())
     {
-        irframe.t_callback = std::chrono::system_clock::now().time_since_epoch().count();
-
         if (tleft != tright)
             std::cerr << "ImageCallback(): stereo time sync inconsistent!" << std::endl;
         irframe.t = tleft;
@@ -48,8 +40,7 @@ void stereoImageCallback(uint64_t t_pipe , void* irleft, void* irright, const in
 
         if (seqleft == 1)
         {
-            irframe.t_base = t_pipe;
-            ROS_INFO_STREAM("ImageCallback(): First frame successfully captured!");
+            irframe.t_base = dev_time;
         }
         else
         {
@@ -59,27 +50,16 @@ void stereoImageCallback(uint64_t t_pipe , void* irleft, void* irright, const in
         
         irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);    
         irframe.right = cv::Mat(cv::Size(w, h), CV_8UC1, irright, cv::Mat::AUTO_STEP);
-        irframe.t = t_pipe;
+        irframe.t = dev_time - irframe.t_base;
 
+        std::cout << irframe.t << std::endl;
         irframe.inProcess.unlock();
-
-        irframe.cv.notify_one();
 
     }else
     {
         std::cout<< "Missed Frame(" << irframe.seq << ")" << std::endl;
     }
 }
-
-
-
-// void signalHandler(int signum)
-// {
-//     std::cout << strsignal(signum) << " Signal is received! Terminating RealSense Node..." << std::endl;
-//     ros::shutdown();
-//     delete sys;
-//     exit(signum);
-// }
 
 int main(int argc, char * argv[]) try
 {
@@ -96,49 +76,28 @@ int main(int argc, char * argv[]) try
 
     sys->registerCallback(stereoImageCallback);
 
-    // ros initialisation
-    ros::init(argc, argv, "rs2");
-    ros::NodeHandle nh;
-
-    //signal(SIGINT, signalHandler);
-
-    ROS_INFO_STREAM("hello world from ROS!");
-
 
     sys->startPipe();
 
     uint frame_idx = 0;
-    while (ros::ok())
+    while (cv::waitKey(1) < 0)
     {
-
-        std::unique_lock<std::mutex> lk(irframe.inProcess);
-        irframe.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
-        
         if (frame_idx < irframe.seq)
         {   
-            //irframe.inProcess.lock();
-            //uint64_t now = std::chrono::system_clock::now().time_since_epoch().count();
-            // std::cout << irframe.seq << std::endl;
-            // std::cout << "lag from callback to main: " << (now - irframe.t_callback) / 1.0e6 << std::endl;
+            irframe.inProcess.lock();
 
             // Update the window with new data
             cv::imshow(window_name_l, irframe.left);
             cv::imshow(window_name_r, irframe.right);
-            cvWaitKey(1); // ~15ms
-
             frame_idx = irframe.seq;
-            //irframe.inProcess.unlock();
-        }/*else{
-            std::cout << "mutex: spurious wake up!" << std::endl;
-        }*/  
-        lk.unlock();
-        ros::spinOnce();
-        //std::this_thread::sleep_for(std::chrono::nanoseconds(100));
-        //std::this_thread::yield();
+            irframe.inProcess.unlock();
+        }
     }
 
-    //ros::shutdown();
-    delete sys;
+    //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
+    sys->stopPipe();
+
     std::cout << "main() exits" << std::endl;
 
     return EXIT_SUCCESS;

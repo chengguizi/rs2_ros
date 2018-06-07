@@ -11,7 +11,8 @@
             },
             "includePath": [
                 "/opt/ros/kinetic/include",
-                "/usr/include"
+                "/usr/include",
+                "./rs2_interface/include"
             ],
             "name": "Linux",
             "intelliSenseMode": "clang-x64"

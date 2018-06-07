@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>rs2-interface</name>
+  <name>rs2_ros</name>
   <version>0.0.1</version>
-  <description>The rs2-interface package</description>
+  <description>The ros wrapper for realsense2 device (d415)</description>
 
 
   <maintainer email="email@email.com">Huimin</maintainer>

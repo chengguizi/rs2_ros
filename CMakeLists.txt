@@ -1,20 +1,14 @@
-cmake_minimum_required(VERSION 2.8.9)
-project(rs2-interface)
+cmake_minimum_required(VERSION 3.5)
+project(rs2_ros)
 
-find_package(OpenCV REQUIRED)
-#message("OpenCV_LIBRARIES = ${OpenCV_LIBRARIES}")
-find_package(realsense2 REQUIRED)
-find_package(Threads REQUIRED)
+# build rs2_interface::rs2_interface target
+add_subdirectory(rs2_interface)
 
-# This section is a work-around for bad naming conventions in librealsense Config.cmake file
-if(realsense2_FOUND) # this is always true if the *Config.cmake file is present, even if it is empty!
-  #                                   v
-  list(APPEND realsense2_LIBRARIES    ${realsense2_LIBRARY})
-  #list(APPEND realsense2_INCLUDE_DIRS ${realsense_INCLUDE_DIR})
-  #                                   X
-else()
-  message("NOT founded!!")
-endif()
+# enable C++11 standard (current directory scope)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON) # prevent fallback
+# get_property(_variableNames GLOBAL PROPERTY CMAKE_CXX_STANDARD)
+# message(WARNING "CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}")
 
 find_package(catkin REQUIRED COMPONENTS 
   roscpp
@@ -22,40 +16,31 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 catkin_package(
-#  INCLUDE_DIRS rs2-interface/src
-#  LIBRARIES rs2-interface
+#  INCLUDE_DIRS
+#  LIBRARIES rs2_ros
 #  CATKIN_DEPENDS roscpp std_msgs
 #  DEPENDS system_lib
 )
 
-
-set(CMAKE_CXX_STANDARD 11)  # enable C++11 standard
-# Set the output folder where your program will be created
-#set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
-#set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
-#set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
-
-include_directories(
-  src
-  ${catkin_INCLUDE_DIRS}
-#   ${OpenCV_INCLUDE_DIRS} # Not needed for CMake >= 2.8.11
-#   ${realsense2_INCLUDE_DIRS}
-)
-
-add_executable(rs2-interface 
+add_executable(rs2_ros 
   src/main.cpp
-  src/irstereo.cpp
-)
-add_executable(rs2-test src/test.cpp)
-
-target_link_libraries(rs2-interface 
-${OpenCV_LIBRARIES}
-${realsense2_LIBRARIES}
-${catkin_LIBRARIES}
-Threads::Threads
 )
 
-target_link_libraries(rs2-test 
-${OpenCV_LIBRARIES}
-${realsense2_LIBRARIES}
+include_directories(${catkin_INCLUDE_DIRS}) # to find ros/ros.h
+# alternatively and more specifically:
+# target_include_directories(rs2_ros
+#   PRIVATE
+#     ${catkin_INCLUDE_DIRS}
+# )
+
+# get_property(_variableNames TARGET rs2_interface::rs2_interface PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+# list (SORT _variableNames)
+# foreach (_variableName ${_variableNames})
+#     message(WARNING "${_variableName}=${${_variableName}}")
+# endforeach()
+
+target_link_libraries(rs2_ros
+  PRIVATE
+    ${catkin_LIBRARIES}
+    rs2_interface::rs2_interface # this automatically adds including using target property INTERFACE_INCLUDE_DIRECTORIES
 )

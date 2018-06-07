@@ -1,23 +1,23 @@
+#ifndef IRSTEREO_INTERFACE_HPP
+#define IRSTEREO_INTERFACE_HPP
 // ROS Node for Realsense D415 Streams
 // Cheng Huimin, June 2018
 //
 // Class of the physical sensor for callback operations
-#ifndef IRSTEREO_H
-#define IRSTEREO_H
+
+// https://github.com/IntelRealSense/librealsense/wiki/Projection-in-RealSense-SDK-2.0
+// - Left and right infrared images are rectified by default (Y16 format is not)
 
 #include <librealsense2/rs.hpp>
 #include <thread>
 #include <chrono>
 #include <functional>
 #include <vector>
-// #include <librealsense2/h/rs_option.h>
-// #include <librealsense2/hpp/rs_types.hpp>
-
 
 class IrStereoDriver {
 
 public:
-    typedef const std::function<void(unsigned long long, void*,void*, int, int, double, double, unsigned long long, unsigned long long)> callbackType; 
+    typedef const std::function<void(uint64_t, void*,void*, int, int, double, double, uint64_t, uint64_t)> callbackType; 
                         // time since epoch, left & right image data, width, height, hardware time left & right, hardware sequence left & right
     IrStereoDriver();
     ~IrStereoDriver();
@@ -39,4 +39,5 @@ private:
     std::vector<callbackType*> _cblist;
 };
 
-#endif /* IRSTEREO_H */
+
+#endif /* IRSTEREO_INTERFACE_HPP */
