@@ -43,11 +43,16 @@ void StereoOdometerPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_c
     std_msgs::Header header;
     header.stamp = sensor_timestamp;
     header.seq = seq;
+
+    // publish left image
     cv_bridge::CvImage imageLeft_bridge = cv_bridge::CvImage(header, \
                 sensor_msgs::image_encodings::MONO8, imageLeft_cv);
 
+    _pubLeft->publish(imageLeft_bridge.toImageMsg());
 
-    sensor_msgs::ImagePtr imageLeft_msg = imageLeft_bridge.toImageMsg();
-    
-    _pubLeft->publish(imageLeft_msg);
+    // publish right image
+    cv_bridge::CvImage imageRight_bridge = cv_bridge::CvImage(header, \
+                sensor_msgs::image_encodings::MONO8, imageRight_cv);
+
+    _pubLeft->publish(imageRight_bridge.toImageMsg());
 }
