@@ -157,24 +157,18 @@ void IrStereoDriver::stopPipe()
 void IrStereoDriver::process()
 {
 
-    rs2::frameset dummyset = _pipe->wait_for_frames(500); // Wait for next set of frames from the camera
-    rs2::video_frame dummy = dummyset.get_infrared_frame(1);
-    // Query frame size (width and height)
-    int w = dummy.get_width();
-    int h = dummy.get_height();
-
-    switch (dummy.get_frame_timestamp_domain())
-    {
-        case RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME:
-            std::cout<< "frame_timestamp_domain = RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME" << std::endl;
-        break;
-        case RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK:
-            std::cout<< "frame_timestamp_domain = RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK" << std::endl;
-        break;
-        default:
-            std::cout<< "frame_timestamp_domain = (error)" << std::endl;
-        break;
-    }
+    // switch (dummy.get_frame_timestamp_domain())
+    // {
+    //     case RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME:
+    //         std::cout<< "frame_timestamp_domain = RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME" << std::endl;
+    //     break;
+    //     case RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK:
+    //         std::cout<< "frame_timestamp_domain = RS2_TIMESTAMP_DOMAIN_HARDWARE_CLOCK" << std::endl;
+    //     break;
+    //     default:
+    //         std::cout<< "frame_timestamp_domain = (error)" << std::endl;
+    //     break;
+    // }
 
     std::cout << "Process Starts..." << std::endl;
 
@@ -184,14 +178,40 @@ void IrStereoDriver::process()
         
         uint64_t now = std::chrono::system_clock::now().time_since_epoch().count();
 
+        int num_frames = dataset.size();
+        if (num_frames != 2)
+            std::cerr << "frameset contains " << num_frames << "frames, should be 2."<< std::endl;
+
         rs2::video_frame frame_left = dataset.get_infrared_frame(1);
         double time_left = frame_left.get_timestamp()/1000;
         uint64_t seq_left = frame_left.get_frame_number();
 
+        int w = frame_left.get_width();
+        int h = frame_left.get_height();
+
+        //metadata in usec
+        uint64_t meta_toa = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
+        // auto meta_sensortime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP);
+        // auto meta_frametime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP);
+        uint64_t meta_backendtime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP);
+
+        const uint64_t delay_sensor_to_frame = 1e7; // 10000us delay, RS2_FRAME_METADATA_FRAME_TIMESTAMP - RS2_FRAME_METADATA_SENSOR_TIMESTAMP
+        uint64_t delay_uvc_to_frontend = meta_toa - meta_backendtime ; // ~16000us delay meta_toa - meta_backendtime
+        uint64_t sensor_time = meta_backendtime * 1e6 - delay_sensor_to_frame; // in nanosecond, epoch time
+
         rs2::video_frame frame_right = dataset.get_infrared_frame(2);
         double time_right = frame_right.get_timestamp()/1000;
         uint64_t seq_right = frame_right.get_frame_number();
-        
+
+        //metadata
+        // auto meta_toa2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
+        // auto meta_sensortime2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP);
+        // auto meta_frametime2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP);
+        // auto meta_backendtime2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP);
+
+        // uint64_t delay_uvc_to_frontend2 = meta_toa2 - meta_backendtime2;
+        // std::cout << delay_uvc_to_frontend << "  " << delay_uvc_to_frontend2 << std::endl;
+
         void* irleft = new char[w*h];
         memcpy(irleft,frame_left.get_data(),w*h);
 
@@ -200,9 +220,10 @@ void IrStereoDriver::process()
 
         for (callbackType* cb : _cblist)
         {
-            (*cb)(now, irleft,irright,w,h,time_left,time_right,seq_left,seq_right);
+            (*cb)(sensor_time, irleft,irright,w,h,time_left,time_right,seq_left,seq_right);
             // time_left and time_right is time since boot of the realsense hardware
         }
+
     }
     std::cout << "Process Ended..." << std::endl;
 }

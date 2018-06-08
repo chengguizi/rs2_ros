@@ -13,6 +13,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON) # prevent fallback
 find_package(catkin REQUIRED COMPONENTS 
   roscpp
   std_msgs
+  image_transport
+  cv_bridge
 )
 
 catkin_package(
@@ -24,6 +26,7 @@ catkin_package(
 
 add_executable(rs2_ros 
   src/main.cpp
+  src/ros_publisher.cpp
 )
 
 include_directories(${catkin_INCLUDE_DIRS}) # to find ros/ros.h
