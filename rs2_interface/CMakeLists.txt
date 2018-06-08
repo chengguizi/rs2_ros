@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON) # prevent fallback
 # )
 
 find_package(OpenCV REQUIRED)
-#message("OpenCV_LIBRARIES = ${OpenCV_LIBRARIES}")
+#message(WARNING "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
 find_package(realsense2 REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -43,9 +43,8 @@ target_include_directories( rs2_interface
 
 # static lib dependency, reference https://floooh.github.io/2016/01/12/cmake-dependency-juggling.html
 target_link_libraries( rs2_interface
-  PRIVATE
-    ${OpenCV_LIBRARIES}
-    ${realsense2_LIBRARIES}
+  PUBLIC
+    realsense2::realsense2
     Threads::Threads
 )
 
@@ -60,7 +59,11 @@ target_link_libraries( rs2_interface
 # )
 
 add_executable(rs2-test src/test.cpp)
+
+target_include_directories(rs2-test PRIVATE ${OpenCV_INCLUDE_DIRS})
+
 target_link_libraries(rs2-test
+${OpenCV_LIBRARIES}
 rs2_interface::rs2_interface
 )
 
