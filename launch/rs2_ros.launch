@@ -1,0 +1,8 @@
+<launch>
+    <node name="rs2_ros" pkg="rs2_ros" type="rs2_ros" respawn="true" respawn_delay="2" output="screen">
+        <param name="width" value="1280" />
+        <param name="height" value="720" />
+        <param name="exposure" value="20000" />
+        <param name="gain" value="40" />
+    </node>
+</launch>

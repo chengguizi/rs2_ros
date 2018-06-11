@@ -48,15 +48,17 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
             std::cerr << "ImageCallback(): stereo frame sequence sync inconsistent!" << std::endl;
         irframe.seq = seqleft;
 
-        if (seqleft == 1)
+        if (seqleft == 0)
         {
             irframe.t_base = t_sensor;
             ROS_INFO_STREAM("ImageCallback(): First frame successfully captured!");
         }
         else
         {
-           delete[] irframe.left.data; // will cause memory leak if this is not freed
-           delete[] irframe.right.data;
+            //ROS_INFO_STREAM("ImageCallback(): deleting " << seqleft);
+            delete[] irframe.left.data; // will cause memory leak if this is not freed
+            delete[] irframe.right.data;
+            //ROS_INFO_STREAM("ImageCallback(): deleted " << seqleft);
         }
         
         irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);    
@@ -73,6 +75,56 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
     }
 }
 
+void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::CameraInfo& left, sensor_msgs::CameraInfo& right)
+{
+    sensor_msgs::CameraInfo camerainfo;
+
+
+    camerainfo.width = intrinsics.width;
+    camerainfo.height = intrinsics.height;
+    //camerainfo.header.frame_id = _optical_frame_id[stream_index];
+    camerainfo.K.at(0) = intrinsics.fx; // have scale here?
+    camerainfo.K.at(2) = intrinsics.ppx;
+    camerainfo.K.at(4) = intrinsics.fy;
+    camerainfo.K.at(5) = intrinsics.ppy;
+    camerainfo.K.at(8) = 1;
+
+    camerainfo.P.at(0) = intrinsics.fx;
+    camerainfo.P.at(1) = 0;
+    camerainfo.P.at(2) = intrinsics.ppx;
+    camerainfo.P.at(3) = 0; // Tx, -fx * B
+    camerainfo.P.at(4) = 0;
+    camerainfo.P.at(5) = intrinsics.fy;
+    camerainfo.P.at(6) = intrinsics.ppy;
+    camerainfo.P.at(7) = 0; // Ty
+    camerainfo.P.at(8) = 0;
+    camerainfo.P.at(9) = 0;
+    camerainfo.P.at(10) = 1;
+    camerainfo.P.at(11) = 0;
+
+    camerainfo.distortion_model = "plumb_bob";
+
+    // set R (rotation matrix) values to identity matrix
+    camerainfo.R.at(0) = 1.0;
+    camerainfo.R.at(1) = 0.0;
+    camerainfo.R.at(2) = 0.0;
+    camerainfo.R.at(3) = 0.0;
+    camerainfo.R.at(4) = 1.0;
+    camerainfo.R.at(5) = 0.0;
+    camerainfo.R.at(6) = 0.0;
+    camerainfo.R.at(7) = 0.0;
+    camerainfo.R.at(8) = 1.0;
+
+    for (int i = 0; i < 5; i++)
+    {
+        camerainfo.D.push_back(intrinsics.coeffs[i]);
+    }
+
+    left = camerainfo;
+    right = camerainfo;
+    right.P.at(3) = - intrinsics.fx * baseline;
+
+}
 
 
 // void signalHandler(int signum)
@@ -85,11 +137,23 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
 
 int main(int argc, char * argv[]) try
 {
-    IrStereoDriver* sys = new IrStereoDriver();
+    IrStereoDriver* sys = new IrStereoDriver("RealSense D415");
+
+    // ros initialisation
+    ros::init(argc, argv, "rs2_camera");
+    ros::NodeHandle nh("~");
+
+    int w,h;
+    int exposure,gain;
+    nh.param("width", w,1280);
+    nh.param("height",h,720);
+    nh.param("exposure",exposure,20000);
+    nh.param("gain",gain,40);
+
 
     // for more options, please refer rs_option.h
-    sys->setOption(RS2_OPTION_EXPOSURE,20000); // in usec
-    sys->setOption(RS2_OPTION_GAIN,40);
+    sys->setOption(RS2_OPTION_EXPOSURE,exposure); // in usec
+    sys->setOption(RS2_OPTION_GAIN,gain);
 
     const auto window_name_l = "Display Image Left";
     const auto window_name_r = "Display Image Right";
@@ -98,17 +162,15 @@ int main(int argc, char * argv[]) try
 
     sys->registerCallback(stereoImageCallback);
 
-    // ros initialisation
-    ros::init(argc, argv, "rs2_camera");
-    ros::NodeHandle nh("~");
+
     StereoOdometerPublisher pub(nh); // start with private scope
 
     //signal(SIGINT, signalHandler);
 
-    ROS_INFO_STREAM("hello world from ROS!");
+    sys->startPipe(w,h);
 
-
-    sys->startPipe();
+    sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
+    getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);
 
     uint frame_idx = 0;
     while (ros::ok())
@@ -126,7 +188,7 @@ int main(int argc, char * argv[]) try
             ros::Time sensor_timestamp; 
             sensor_timestamp.fromNSec(irframe.t);
             
-            pub.publish(irframe.left, irframe.right, sensor_timestamp, irframe.seq);
+            pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
 
             //cvWaitKey(1); // ~15ms
             frame_idx = irframe.seq;

@@ -6,6 +6,7 @@
 #include <librealsense2/rs.hpp>
 #include <iostream>
 #include <cstring>
+#include <string>
 //#include <stdio.h> // printf
 //#include <stdlib.h> // linux
 
@@ -45,7 +46,7 @@ std::string get_sensor_name(const rs2::sensor& sensor)
 // class member functions
 ////////////////////////////////
 
-IrStereoDriver::IrStereoDriver() : _isStreaming(false)
+IrStereoDriver::IrStereoDriver(std::string dev_name_str) : _isStreaming(false), _dev_name_str(dev_name_str)
 {
     _pipe = new rs2::pipeline();
     init();
@@ -88,20 +89,34 @@ void IrStereoDriver::init()
         //The device list provides 2 ways of iterating it
         //The first way is using an iterator (in this case hidden in the Range-based for loop)
         int index = 0;
+        bool rs2_found = false;
         for (rs2::device device : devices)
         {
-            std::cout << "  " << index++ << " : " << get_device_name(device) << std::endl;
+            std::string name = device.get_info(RS2_CAMERA_INFO_NAME); // get_device_name(device);
+            std::cout << "  " << index << " : " << name << std::endl;
+
+            if (!rs2_found && name.find(_dev_name_str) != std::string::npos)
+            {
+                std::cout << "found RealSense Camera: " << _dev_name_str << std::endl;
+                rs2_found =  true;
+            }
+
+            if(!rs2_found)
+                index++;
         }
 
-        uint32_t selected_device_index = 0;
-
-        std::cout << std::endl << "Selecting the first device..." << std::endl;
+        if (!rs2_found) // no realsense device present
+        {
+            std::cerr << "No RealSense camera was found, exiting..." << std::endl;
+            exit(1);
+        }
 
         // Update the selected device
-        selected_device = devices[selected_device_index];
+        selected_device = devices[index];
+        std::cout << "Device Serial Number: #" << selected_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER) << std::endl;
     }
 
-    std::cout << "Device initialised successfully!" << std::endl;
+    std::cout << "=======================================" << std::endl;
     _dev = new auto(selected_device);
 
 
@@ -119,23 +134,78 @@ void IrStereoDriver::init()
     auto stereo_sensor = _dev->first<rs2::depth_stereo_sensor>();
     _stereo = new auto(stereo_sensor);
     std::cout << "Stereo Sensor initialised successfully!" << std::endl;
-    std::cout << std::endl << "=======================================" << std::endl << std::endl;
+    std::cout << "=======================================" << std::endl << std::endl;
 }
 
-void IrStereoDriver::startPipe()
+void IrStereoDriver::startPipe(int width, int height)
 {
     //Create a configuration for configuring the pipeline with a non default profile
     rs2::config cfg;
-    cfg.enable_stream(RS2_STREAM_INFRARED,1, 1280, 720, RS2_FORMAT_Y8, 30);
-    cfg.enable_stream(RS2_STREAM_INFRARED,2, 1280, 720, RS2_FORMAT_Y8, 30);
+    cfg.enable_stream(RS2_STREAM_INFRARED,1, width, height, RS2_FORMAT_Y8, 30); // left
+    cfg.enable_stream(RS2_STREAM_INFRARED,2, width, height, RS2_FORMAT_Y8, 30); // right
 
     // Start streaming with default recommended configuration
     rs2::pipeline_profile selection = _pipe->start(cfg);
-    std::cout << "Pipeline Streaming Starts..." << std::endl;
     _profile = new auto(selection);
+
+    auto stream_profile_left = _profile->get_stream(RS2_STREAM_INFRARED,1);
+    auto stream_profile_right = _profile->get_stream(RS2_STREAM_INFRARED,2);
+    auto video_profile_left = stream_profile_left.as<rs2::video_stream_profile>();
+    
+    _intrinsics =  video_profile_left.get_intrinsics();
+
+    std::cout << std::endl << "Realsense Hardware Intrinsics" << std::endl
+                << "fx= " << _intrinsics.fx << std::endl// 1.88mm focal length?
+                << "fy= " << _intrinsics.fy << std::endl
+                << "width= " << _intrinsics.width << std::endl // 1.4um pixel size
+                << "height= " << _intrinsics.height << std::endl
+                << "ppx= " << _intrinsics.ppx << std::endl // principal point
+                << "ppy= " << _intrinsics.ppy << std::endl
+                << "model= " << rs2_distortion_to_string(_intrinsics.model) << std::endl;
+
+    _extrinsics_left_to_right = stream_profile_left.get_extrinsics_to(stream_profile_right); // baseline 55mm?
+
+    _baseline = _stereo->get_option(RS2_OPTION_STEREO_BASELINE) / 1000.0 ; // convert from mm to meter
+
+    std::cout << std::endl << "Realsense Hardware Extrinsics (left to right)" << std::endl
+                << "translation: ";
+    
+    for (const auto& element : _extrinsics_left_to_right.translation ) 
+                std::cout  << element << ", ";
+
+    std::cout << std::endl << "rotation: ";
+    for (const auto& element : _extrinsics_left_to_right.rotation ) 
+                std::cout  << element << ", ";
+    std::cout << std::endl;
+
+    std::cout << "baseline: " << _baseline << std::endl;
+
+    if (width != _intrinsics.width || height != _intrinsics.height )
+    {
+        std::cerr << "ERROR: intrinsics dimensions mismatch requested resolutions" << std::endl;
+        exit(1);
+    }
 
     _isStreaming = true;
     _thread = std::thread(&IrStereoDriver::process,this);
+
+    std::cout << "Pipeline Streaming Starts with resolution of [" << width <<"*" << height << "]" << std::endl;
+    std::cout << "=======================================" << std::endl << std::endl;
+}
+
+rs2_intrinsics IrStereoDriver::get_intrinsics() const
+{
+    return _intrinsics;
+}
+
+rs2_extrinsics IrStereoDriver::get_extrinsics_left_to_right() const
+{
+    return _extrinsics_left_to_right;
+}
+
+float IrStereoDriver::get_baseline() const
+{
+    return _baseline;
 }
 
 void IrStereoDriver::stopPipe()

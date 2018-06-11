@@ -63,7 +63,7 @@ void stereoImageCallback(unsigned long long dev_time, void* irleft, void* irrigh
 
 int main(int argc, char * argv[]) try
 {
-    IrStereoDriver* sys = new IrStereoDriver();
+    IrStereoDriver* sys = new IrStereoDriver("RealSense D415");
 
     // for more options, please refer rs_option.h
     sys->setOption(RS2_OPTION_EXPOSURE,20000); // in usec
@@ -77,7 +77,7 @@ int main(int argc, char * argv[]) try
     sys->registerCallback(stereoImageCallback);
 
 
-    sys->startPipe();
+    sys->startPipe(1280,720);
 
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)
