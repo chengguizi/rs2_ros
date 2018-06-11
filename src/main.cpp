@@ -137,14 +137,13 @@ void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::Camer
 
 int main(int argc, char * argv[]) try
 {
-    IrStereoDriver* sys = new IrStereoDriver("RealSense D415");
 
     // ros initialisation
     ros::init(argc, argv, "rs2_camera");
     ros::NodeHandle nh("~");
 
     int w,h,hz;
-    int exposure,gain;
+    int exposure,gain,laser_power;
     bool auto_exposure;
     nh.param("width", w,1280);
     nh.param("height",h,720);
@@ -152,6 +151,9 @@ int main(int argc, char * argv[]) try
     nh.param("exposure",exposure,20000);
     nh.param("auto_exposure",auto_exposure,true);
     nh.param("gain",gain,40);
+    nh.param("laser_power",laser_power,150);
+
+    IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
 
 
     // for more options, please refer rs_option.h

@@ -6,5 +6,6 @@
         <param name="exposure" value="20000" />
         <param name="auto_exposure" value="false" />
         <param name="gain" value="80" />
+        <param name="laser_power" value="300" />
     </node>
 </launch>
