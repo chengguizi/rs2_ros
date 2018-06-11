@@ -143,16 +143,22 @@ int main(int argc, char * argv[]) try
     ros::init(argc, argv, "rs2_camera");
     ros::NodeHandle nh("~");
 
-    int w,h;
+    int w,h,hz;
     int exposure,gain;
+    bool auto_exposure;
     nh.param("width", w,1280);
     nh.param("height",h,720);
+    nh.param("frame_rate",hz,30);
     nh.param("exposure",exposure,20000);
+    nh.param("auto_exposure",auto_exposure,true);
     nh.param("gain",gain,40);
 
 
     // for more options, please refer rs_option.h
-    sys->setOption(RS2_OPTION_EXPOSURE,exposure); // in usec
+    if (auto_exposure)
+        sys->setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
+    else
+        sys->setOption(RS2_OPTION_EXPOSURE,exposure); // in usec
     sys->setOption(RS2_OPTION_GAIN,gain);
 
     const auto window_name_l = "Display Image Left";
@@ -167,7 +173,7 @@ int main(int argc, char * argv[]) try
 
     //signal(SIGINT, signalHandler);
 
-    sys->startPipe(w,h);
+    sys->startPipe(w,h,hz);
 
     sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
     getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);

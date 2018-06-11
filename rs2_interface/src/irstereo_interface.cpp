@@ -137,12 +137,12 @@ void IrStereoDriver::init()
     std::cout << "=======================================" << std::endl << std::endl;
 }
 
-void IrStereoDriver::startPipe(int width, int height)
+void IrStereoDriver::startPipe(int width, int height, int hz)
 {
     //Create a configuration for configuring the pipeline with a non default profile
     rs2::config cfg;
-    cfg.enable_stream(RS2_STREAM_INFRARED,1, width, height, RS2_FORMAT_Y8, 30); // left
-    cfg.enable_stream(RS2_STREAM_INFRARED,2, width, height, RS2_FORMAT_Y8, 30); // right
+    cfg.enable_stream(RS2_STREAM_INFRARED,1, width, height, RS2_FORMAT_Y8, hz); // left
+    cfg.enable_stream(RS2_STREAM_INFRARED,2, width, height, RS2_FORMAT_Y8, hz); // right
 
     // Start streaming with default recommended configuration
     rs2::pipeline_profile selection = _pipe->start(cfg);
@@ -189,7 +189,7 @@ void IrStereoDriver::startPipe(int width, int height)
     _isStreaming = true;
     _thread = std::thread(&IrStereoDriver::process,this);
 
-    std::cout << "Pipeline Streaming Starts with resolution of [" << width <<"*" << height << "]" << std::endl;
+    std::cout << "Pipeline Streaming Starts with resolution of [" << width <<"*" << height << "]@" << hz << "Hz" << std::endl;
     std::cout << "=======================================" << std::endl << std::endl;
 }
 

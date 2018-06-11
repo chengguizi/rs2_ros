@@ -77,7 +77,7 @@ int main(int argc, char * argv[]) try
     sys->registerCallback(stereoImageCallback);
 
 
-    sys->startPipe(1280,720);
+    sys->startPipe(1280, 720, 30);
 
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)

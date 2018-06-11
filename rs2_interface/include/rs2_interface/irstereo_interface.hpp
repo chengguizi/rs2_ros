@@ -22,7 +22,7 @@ public:
     IrStereoDriver(std::string dev_name_str);
     ~IrStereoDriver();
     void setOption(rs2_option option, float value);
-    void startPipe(int width, int height);
+    void startPipe(int width, int height, int hz);
     rs2_intrinsics get_intrinsics() const; // only call this after pipe started
     rs2_extrinsics get_extrinsics_left_to_right() const;
     float get_baseline() const;
@@ -31,7 +31,7 @@ public:
 private:
     void init();
     void process();
-    
+
     std::string _dev_name_str;
     rs2::pipeline* _pipe;
     rs2::device* _dev;
