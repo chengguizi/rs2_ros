@@ -3,9 +3,9 @@
         <param name="width" value="1280" />
         <param name="height" value="720" />
         <param name="frame_rate" value="15" />
-        <param name="exposure" value="20000" />
+        <param name="exposure" value="10000" />
         <param name="auto_exposure" value="false" />
-        <param name="gain" value="80" />
-        <param name="laser_power" value="300" />
+         <param name="gain" value="240" /> <!-- value from 16 - 248 -->
+         <param name="laser_power" value="300" /> <!-- from 0 to 360 -->
     </node>
 </launch>
