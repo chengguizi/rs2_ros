@@ -22,6 +22,7 @@ public:
     IrStereoDriver(std::string dev_name_str = "RealSense D415", int laser_power = 150);
     ~IrStereoDriver();
     void setOption(rs2_option option, float value);
+    float getOption(rs2_option option);
     void startPipe(int width, int height, int hz);
     rs2_intrinsics get_intrinsics() const; // only call this after pipe started
     rs2_extrinsics get_extrinsics_left_to_right() const;

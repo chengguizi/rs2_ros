@@ -164,14 +164,15 @@ void IrStereoDriver::startPipe(int width, int height, int hz)
     auto video_profile_left = stream_profile_left.as<rs2::video_stream_profile>();
     
     _intrinsics =  video_profile_left.get_intrinsics();
+    auto _hz = video_profile_left.fps();
 
     std::cout << std::endl << "Realsense Hardware Intrinsics" << std::endl
-                << "fx= " << _intrinsics.fx << std::endl// 1.88mm focal length?
-                << "fy= " << _intrinsics.fy << std::endl
-                << "width= " << _intrinsics.width << std::endl // 1.4um pixel size
-                << "height= " << _intrinsics.height << std::endl
-                << "ppx= " << _intrinsics.ppx << std::endl // principal point
-                << "ppy= " << _intrinsics.ppy << std::endl
+                << "fx= " << _intrinsics.fx// 1.88mm focal length?
+                << ", fy= " << _intrinsics.fy << std::endl
+                << "width= " << _intrinsics.width // 1.4um pixel size
+                << ", height= " << _intrinsics.height << std::endl
+                << "ppx= " << _intrinsics.ppx // principal point
+                << ", ppy= " << _intrinsics.ppy << std::endl
                 << "model= " << rs2_distortion_to_string(_intrinsics.model) << std::endl;
 
     _extrinsics_left_to_right = stream_profile_left.get_extrinsics_to(stream_profile_right); // baseline 55mm?
@@ -191,9 +192,12 @@ void IrStereoDriver::startPipe(int width, int height, int hz)
 
     std::cout << "baseline: " << _baseline << std::endl;
 
-    if (width != _intrinsics.width || height != _intrinsics.height )
+    if (width != _intrinsics.width || height != _intrinsics.height || _hz != hz)
     {
         std::cerr << "ERROR: intrinsics dimensions mismatch requested resolutions" << std::endl;
+        std::cerr << "width: " << width << " --> " << _intrinsics.width << std::endl;
+        std::cerr << "height: " << height << " --> " << _intrinsics.height << std::endl;
+        std::cerr << "frame rate: " << hz << " --> " << _hz << std::endl;
         exit(1);
     }
 
@@ -312,6 +316,11 @@ void IrStereoDriver::process()
 void IrStereoDriver::setOption(rs2_option option, float value)
 {
     _stereo->set_option(option,value); 
+}
+
+float IrStereoDriver::getOption(rs2_option option)
+{
+    return _stereo->get_option(option); 
 }
 
 void IrStereoDriver::registerCallback(callbackType &cb)

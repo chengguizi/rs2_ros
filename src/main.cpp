@@ -149,7 +149,7 @@ int main(int argc, char * argv[]) try
     nh.param("height",h,720);
     nh.param("frame_rate",hz,30);
     nh.param("exposure",exposure,20000);
-    nh.param("auto_exposure",auto_exposure,true);
+    nh.param("auto_exposure",auto_exposure,false);
     nh.param("gain",gain,40);
     nh.param("laser_power",laser_power,150);
 
@@ -160,8 +160,18 @@ int main(int argc, char * argv[]) try
     if (auto_exposure)
         sys->setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
     else
+    {
+        sys->setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);
         sys->setOption(RS2_OPTION_EXPOSURE,exposure); // in usec
-    sys->setOption(RS2_OPTION_GAIN,gain);
+        sys->setOption(RS2_OPTION_GAIN,gain);
+
+        ROS_ASSERT(sys->getOption(RS2_OPTION_EXPOSURE) ==  exposure);
+        ROS_ASSERT(sys->getOption(RS2_OPTION_GAIN) ==  gain);
+    }
+
+    ROS_ASSERT (sys->getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) == auto_exposure);
+
+    std::cout << "shutter speed= 1/" << 1/(exposure*1e-6) << ", gain= " << gain << std::endl;
 
     const auto window_name_l = "Display Image Left";
     const auto window_name_r = "Display Image Right";
