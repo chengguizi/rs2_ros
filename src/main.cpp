@@ -20,7 +20,8 @@
 
 #include <ros/ros.h>
 
-#include "ros_publisher.h"
+#include "ros_publisher.hpp"
+#include "exposure_ctl.hpp"
 
 struct irframe_t{
     cv::Mat left;
@@ -42,10 +43,10 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
         irframe.t_callback = std::chrono::system_clock::now().time_since_epoch().count();
 
         if (tleft != tright)
-            std::cerr << "ImageCallback(): stereo time sync inconsistent!" << std::endl;
+            ROS_WARN_STREAM( "ImageCallback(): stereo time sync inconsistent!" );
         irframe.t = tleft;
         if (seqleft != seqright)
-            std::cerr << "ImageCallback(): stereo frame sequence sync inconsistent!" << std::endl;
+            ROS_WARN_STREAM( "ImageCallback(): stereo frame sequence sync inconsistent!" );
         irframe.seq = seqleft;
 
         if (seqleft == 0)
@@ -71,7 +72,7 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
 
     }else
     {
-        std::cout<< "Missed Frame(" << irframe.seq << ")" << std::endl;
+        ROS_WARN_STREAM( "Missed Frame(" << irframe.seq << ")" );
     }
 }
 
@@ -122,6 +123,8 @@ void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::Camer
 
     left = camerainfo;
     right = camerainfo;
+
+    // This is the translation term Tx for right camera, assuming left cam is the origin
     right.P.at(3) = - intrinsics.fx * baseline;
 
 }
@@ -154,6 +157,7 @@ int main(int argc, char * argv[]) try
     nh.param("laser_power",laser_power,150);
 
     IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
+    
 
 
     // for more options, please refer rs_option.h
@@ -181,7 +185,7 @@ int main(int argc, char * argv[]) try
     sys->registerCallback(stereoImageCallback);
 
 
-    StereoOdometerPublisher pub(nh); // start with private scope
+    StereoCameraPublisher pub(nh); // start with private scope
 
     //signal(SIGINT, signalHandler);
 
@@ -189,6 +193,9 @@ int main(int argc, char * argv[]) try
 
     sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
     getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);
+
+
+    ExposureControl exposureCtl;
 
     uint frame_idx = 0;
     while (ros::ok())
@@ -207,6 +214,62 @@ int main(int argc, char * argv[]) try
             sensor_timestamp.fromNSec(irframe.t);
             
             pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
+
+            exposureCtl.calcHistogram(irframe.left,exposure,gain);
+            int meanLux = exposureCtl.EstimateMeanLuminance();
+            exposureCtl.showHistogram();
+
+            const static int target_mean = 70;
+            const static int max_exposure = 15000; // ~65Hz
+            const static int min_exposure = 500;
+            const static int max_gain = 240;
+            const static int min_gain = 16;
+            const static int dead_region = 10;
+
+            bool expo_changed = true;
+            if (meanLux < target_mean - dead_region) // image too dark
+            {
+                // Consider Exposure first
+                if (exposure < max_exposure)
+                {
+                    exposure = std::min(max_exposure, exposure + 100*abs(meanLux-target_mean));
+                    sys->setOption(RS2_OPTION_EXPOSURE,exposure);
+                }
+                else if(gain  <  max_gain)
+                {
+                    gain = std::min(max_gain, gain + abs(meanLux-target_mean));
+                    sys->setOption(RS2_OPTION_GAIN,gain/4*4);
+                }
+            }else if (meanLux > target_mean + dead_region) // image too bight
+            {
+                // Consider Gain first
+                if (gain > 160 /*good default*/)
+                {
+                    gain= std::max(160, gain - abs(meanLux-target_mean));
+                    sys->setOption(RS2_OPTION_GAIN,gain/4*4);
+                }
+                else if(exposure > 8000 /*good default*/)
+                {
+                    exposure = std::max(8000, exposure - 100*abs(meanLux-target_mean));
+                    sys->setOption(RS2_OPTION_EXPOSURE,exposure);
+                }
+                else if (gain > min_gain)
+                {
+                    gain = std::max(min_gain, gain - abs(meanLux-target_mean));
+                    sys->setOption(RS2_OPTION_GAIN,gain/4*4);
+                }
+                else if (exposure > min_exposure)
+                {
+                    exposure = std::max(min_exposure, exposure - 100*abs(meanLux-target_mean));
+                    sys->setOption(RS2_OPTION_EXPOSURE,exposure);
+                }
+            }
+                
+
+            exposure = std::min (15000, std::max (500, exposure));
+            //gain = std::min (248, std::max (16, gain));
+
+            std::cout << "exposure: " << exposure << ", gain= " << gain << std::endl;
 
             //cvWaitKey(1); // ~15ms
             frame_idx = irframe.seq;

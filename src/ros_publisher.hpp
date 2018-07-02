@@ -1,3 +1,8 @@
+// ROS Node for Realsense D415 Streams
+// Cheng Huimin, July 2018
+//
+// ROS Interface for publishing images
+
 #ifndef ROS_PUBLISHER_H
 #define ROS_PUBLISHER_H
 
@@ -11,12 +16,12 @@ namespace image_transport
     class CameraPublisher;
 }
 
-class StereoOdometerPublisher
+class StereoCameraPublisher
 {
     public:
-        StereoOdometerPublisher();
-        StereoOdometerPublisher(ros::NodeHandle& nh);
-        ~StereoOdometerPublisher();
+        StereoCameraPublisher();
+        StereoCameraPublisher(ros::NodeHandle& nh);
+        ~StereoCameraPublisher();
 
         void publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv, sensor_msgs::CameraInfo cameraInfo_left, sensor_msgs::CameraInfo cameraInfo_right, ros::Time sensor_timestamp, uint64_t seq);
     private:

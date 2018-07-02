@@ -1,5 +1,3 @@
-#ifndef IRSTEREO_INTERFACE_HPP
-#define IRSTEREO_INTERFACE_HPP
 // ROS Node for Realsense D415 Streams
 // Cheng Huimin, June 2018
 //
@@ -7,6 +5,9 @@
 
 // https://github.com/IntelRealSense/librealsense/wiki/Projection-in-RealSense-SDK-2.0
 // - Left and right infrared images are rectified by default (Y16 format is not)
+
+#ifndef IRSTEREO_INTERFACE_HPP
+#define IRSTEREO_INTERFACE_HPP
 
 #include <librealsense2/rs.hpp>
 #include <thread>

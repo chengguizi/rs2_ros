@@ -2,7 +2,7 @@
 // Cheng Huimin, June 2018
 //
 //
-#include "ros_publisher.h"
+#include "ros_publisher.hpp"
 
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
@@ -12,25 +12,25 @@
 #define BUFFER_SIZE 3
 
 
-StereoOdometerPublisher::StereoOdometerPublisher()
+StereoCameraPublisher::StereoCameraPublisher()
 {
     ros::NodeHandle _nh("~");
     init();
 }
 
 
-StereoOdometerPublisher::StereoOdometerPublisher(ros::NodeHandle& nh) : _nh("~")
+StereoCameraPublisher::StereoCameraPublisher(ros::NodeHandle& nh) : _nh("~")
 {
     init();
 }
 
 
-StereoOdometerPublisher::~StereoOdometerPublisher()
+StereoCameraPublisher::~StereoCameraPublisher()
 {
-    std::cout << "StereoOdometerPublisher() destructor." << std::endl;
+    std::cout << "StereoCameraPublisher() destructor." << std::endl;
 }
 
-void StereoOdometerPublisher::init()
+void StereoCameraPublisher::init()
 {
     _it = new image_transport::ImageTransport(_nh);
     _pubLeft = new auto( _it->advertiseCamera("left/image_rect_raw",BUFFER_SIZE));
@@ -38,7 +38,7 @@ void StereoOdometerPublisher::init()
     std::cout << "Publisher initialised." << std::endl;
 }
 
-void StereoOdometerPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv, sensor_msgs::CameraInfo cameraInfo_left,
+void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv, sensor_msgs::CameraInfo cameraInfo_left,
         sensor_msgs::CameraInfo cameraInfo_right,  ros::Time sensor_timestamp, uint64_t seq)
 {
     std_msgs::Header header;

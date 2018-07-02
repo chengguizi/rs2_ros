@@ -1,0 +1,9 @@
+<launch>
+    <node pkg="rs2_ros" name="rs2_fpga_bridge" type="rs2_fpga_bridge" respawn="true" respawn_delay="2" output="screen">
+        <param name="left_image" type="str" value="/rs2_ros/left/image_rect_raw" />
+        <param name="right_image" type="str" value="/rs2_ros/right/image_rect_raw" />
+
+        <param name="left_camerainfo" type="str" value="/rs2_ros/left/camera_info" />
+        <param name="right_camerainfo" type="str" value="/rs2_ros/right/camera_info" />
+    </node>
+</launch>
