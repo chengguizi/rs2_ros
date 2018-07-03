@@ -64,6 +64,8 @@ void ExposureControl::findPeaks()
 {
     peak1 = {};
     peak2 = {};
+    peak1.idx = -1;
+    peak2.idx = -1;
 
     enum Slope{
         ASCENDING,
@@ -99,11 +101,22 @@ void ExposureControl::findPeaks()
         }
     }
 
-    if (!peak1.idx || !peak2.idx)
-        std::cerr << "peak zero detected!" << std::endl;
-
     if (peak1.idx > peak2.idx) // peak1 is always on the left of peak2
         std::swap(peak1,peak2);
+
+    if (peak2.idx == -1) // both peaks 
+    {
+        std::cerr << "both peaks are idx zero" << std::endl;
+        exit(1);
+    }
+
+    const int threshold = 5;
+    if ( peak1.idx == -1 )
+    {
+        if (peak2.idx < 128 - threshold) // means peak2 is dark
+            std::swap(peak1,peak2);
+    }
+    
 
 }
 
