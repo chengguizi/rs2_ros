@@ -249,7 +249,7 @@ int main(int argc, char * argv[]) try
                     // Consider Exposure first
                     if (exposure < max_exposure)
                     {
-                        exposure_target = std::min(max_exposure, exposure + 10*step_expo*margin);
+                        exposure_target = std::min(max_exposure, exposure + 5*step_expo*margin);
                     }
                     else if(gain  <  max_gain)
                     {
@@ -265,7 +265,7 @@ int main(int argc, char * argv[]) try
                     }
                     else if(exposure > 8000 /*good default*/)
                     {
-                        exposure_target = std::max(8000, exposure - 10*step_expo*margin);
+                        exposure_target = std::max(8000, exposure - 5*step_expo*margin);
                     }
                     else if (gain > min_gain)
                     {
@@ -273,7 +273,7 @@ int main(int argc, char * argv[]) try
                     }
                     else if (exposure > min_exposure)
                     {
-                        exposure_target = std::max(min_exposure, exposure - 10*step_expo*margin);
+                        exposure_target = std::max(min_exposure, exposure - 5*step_expo*margin);
                         
                     }
                 }
