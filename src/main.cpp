@@ -205,16 +205,12 @@ int main(int argc, char * argv[]) try
     const int min_gain = gain_range.min;
     const int step_gain = gain_range.step; // == 1
 
-    struct SettingBuffer{
+    struct SettingFilter{
         int expo;
         int gain;
     };
-    std::deque<SettingBuffer> sbuffer;
 
-    for (int i=0; i < 4; i++) // buffer size
-    {
-        sbuffer.push_front({exposure,gain});
-    }
+    SettingFilter settingFilter = {exposure,gain};
 
     uint frame_idx = 0;
     while (ros::ok())
@@ -282,35 +278,38 @@ int main(int argc, char * argv[]) try
                     }
                 }
 
-                sbuffer.push_front({exposure_target,gain_target});
-
-                SettingBuffer avg = {};
-                for (auto setting : sbuffer )
+                // detect big jump
+                const int exposure_jump = 5000;
+                const int gain_jump = 100;
+                if ( abs(exposure_target - exposure) > exposure_jump || abs(gain_target - gain) >  gain_jump )
                 {
-                    avg.expo += setting.expo;
-                    avg.gain += setting.gain;
+                    const double speed = 0.8; // 0 to 1
+                    settingFilter.expo = exposure_target*speed + settingFilter.expo*(1-speed);
+                    settingFilter.gain = gain_target*speed + settingFilter.gain*(1-speed);
+
+                    //rounding
+                    settingFilter.expo = std::round(settingFilter.expo/step_expo)*step_expo;
+                    settingFilter.gain = std::round(settingFilter.gain/step_gain)*step_gain;
+                }else
+                {
+                    settingFilter.expo = exposure_target;
+                    settingFilter.gain = gain_target;
                 }
-                avg.expo /= sbuffer.size();
-                avg.gain /= sbuffer.size();
+                
 
-                avg.expo = avg.expo / step_expo * step_expo;
-                avg.gain = avg.gain / step_gain * step_gain;
-
-                sbuffer.pop_back();
-
-                if (avg.expo != exposure)
+                if (settingFilter.expo != exposure)
                 {
-                    exposure = avg.expo;
+                    exposure = settingFilter.expo;
                     sys->setOption(RS2_OPTION_EXPOSURE,exposure);
                 }
 
-                if (avg.gain != gain)
+                if (settingFilter.gain != gain)
                 {
-                    gain = avg.gain;
+                    gain = settingFilter.gain;
                     sys->setOption(RS2_OPTION_GAIN,gain);
                 }
 
-                std::cout << "exposure: " << avg.expo << ", gain= " << avg.gain << std::endl;
+                std::cout << "exposure: " << exposure << ", gain= " << gain << std::endl;
 
             }
 
