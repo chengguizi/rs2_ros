@@ -16,10 +16,10 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
     cv::calcHist(&img,1 /*num of images*/, 0 /*channels*/, cv::Mat() /*mask*/, 
         hist, 1 /*output dimensions*/,  &histSize/* histogram size*/, 0 /*ranges*/ );
 
-    normalize(hist, hist);
+    normalize(hist, hist,1,0,cv::NORM_L1); // normalised histogram
+    // assert( fabs(cv::sum(hist)[0] - 1) < 1e-3 );
 
     histPeaks = cv::Mat(hist.size(),CV_32FC1);
-    
 
     for (int i = 0 ; i < histSize ; i++)
     {
@@ -30,20 +30,21 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
         }
         histPeaks.at<float>(i) = sum;
     }
-    normalize(histPeaks, histPeaks);
+    normalize(histPeaks, histPeaks,1,0,cv::NORM_L1);
 
     img_width = img.cols;
     img_height = img.rows;
-    P_acc = cv::sum(img)[0];
+    P_acc = cv::sum(img)[0] / (img_width * img_height);
     
     const double k = 5e3;
-    double raw_brightness = k * P_acc / (img_width * img_height) / (exposure_usec * gain);
+    double raw_brightness = k * P_acc / (exposure_usec * gain);
 
     // logistic function
     double f_logistic = 1.0 / ( 1.0 + std::exp( - (raw_brightness - 6.0)) ); // input shouldbe around 0~1, output is strictly 0 ~ 1
 
     bkBrightness = f_logistic; //std::min(1.0, f_logistic);
     std::cout << "bkBrightness: " << bkBrightness << std::endl;
+    assert (bkBrightness>=0 && bkBrightness<=1);
 
     const double c = 0.625;
     const double a_min = 0.15;
@@ -144,12 +145,11 @@ int ExposureControl::EstimateMeanLuminance()
 
 
     double luminanceExcludingRONI = P_acc - P_acc_dark*(1-weightDarkPeak) - P_acc_bright*(1-weightBrightPeak);
-    double sizeExcludingRONI =  img_height*img_width * 
-        (1 - peak1.value*(1-weightDarkPeak) - peak2.value*(1-weightBrightPeak));
+    double sizeExcludingRONI =  (1 - peak1.value*(1-weightDarkPeak) - peak2.value*(1-weightBrightPeak)); // normalised
 
     double MeanLuminance = luminanceExcludingRONI / sizeExcludingRONI;
 
-    if ( MeanLuminance <  20 ) // detect wrong stuff!
+    if ( true ) // detect wrong stuff!
     {
         std::cout  << "P_acc: " << P_acc << ", P_acc_dark: " << P_acc_dark <<  ", P_acc_bright: " << P_acc_bright << std::endl;
     }
@@ -186,6 +186,15 @@ void ExposureControl::showHistogram()
         rectangle( histImage, cv::Point(i*binW, histImage.rows),
                    cv::Point((i+1)*binW - 1, histImage.rows - cvRound(hist.at<float>(i))),
                    color, -1, 8, 0 );
+        if (i == peak1.idx)
+            rectangle( histImage, cv::Point(i*binW, histImage.rows - cvRound(hist.at<float>(i))+1),
+                   cv::Point((i+1)*binW - 1, 0),
+                   cv::Scalar(100,100,100), -1, 8, 0 );
+        
+        if (i == peak2.idx)
+            rectangle( histImage, cv::Point(i*binW, histImage.rows - cvRound(hist.at<float>(i))+1),
+                   cv::Point((i+1)*binW - 1, 0),
+                   cv::Scalar(200,200,200), -1, 8, 0 );
     }
         
     imshow("histogram Peaks", histImage);
