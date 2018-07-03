@@ -5,6 +5,8 @@
 
 #include <iostream>
 #include <iomanip>
+#include <deque>
+#include <numeric>
 
 #include <csignal>
 
@@ -157,8 +159,6 @@ int main(int argc, char * argv[]) try
     nh.param("laser_power",laser_power,150);
 
     IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
-    
-
 
     // for more options, please refer rs_option.h
     if (auto_exposure)
@@ -196,6 +196,25 @@ int main(int argc, char * argv[]) try
 
 
     ExposureControl exposureCtl;
+    const auto exposure_range =  sys->getOptionRange(RS2_OPTION_EXPOSURE);
+    const auto gain_range = sys->getOptionRange(RS2_OPTION_GAIN);
+    const int max_exposure = 15000; // ~65Hz
+    const int min_exposure = exposure_range.min; // == 20 us or 1/50000
+    const int step_expo = exposure_range.step; // == 20
+    const int max_gain = gain_range.max;
+    const int min_gain = gain_range.min;
+    const int step_gain = gain_range.step; // == 1
+
+    struct SettingBuffer{
+        int expo;
+        int gain;
+    };
+    std::deque<SettingBuffer> sbuffer;
+
+    for (int i=0; i < 4; i++) // buffer size
+    {
+        sbuffer.push_front({exposure,gain});
+    }
 
     uint frame_idx = 0;
     while (ros::ok())
@@ -212,6 +231,7 @@ int main(int argc, char * argv[]) try
 
             ros::Time sensor_timestamp; 
             sensor_timestamp.fromNSec(irframe.t);
+
             
             pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
 
@@ -220,53 +240,79 @@ int main(int argc, char * argv[]) try
             exposureCtl.showHistogram();
 
             const static int target_mean = 70;
-            const static int max_exposure = 15000; // ~65Hz
-            const static int min_exposure = 500;
-            const static int max_gain = 240;
-            const static int min_gain = 16;
             const static int dead_region = 10;
 
-            bool expo_changed = false;
-            if (meanLux < target_mean - dead_region) // image too dark
+            if (irframe.seq%2) // only process half of the frames, give some delays
             {
-                int margin = target_mean - meanLux;
-                // Consider Exposure first
-                if (exposure < max_exposure)
+                int exposure_target = exposure;
+                int gain_target = gain;
+
+                if (meanLux < target_mean - dead_region) // image too dark
                 {
-                    exposure = std::min(max_exposure, exposure + 100*margin);
+                    int margin = target_mean - meanLux;
+                    // Consider Exposure first
+                    if (exposure < max_exposure)
+                    {
+                        exposure_target = std::min(max_exposure, exposure + 10*step_expo*margin);
+                    }
+                    else if(gain  <  max_gain)
+                    {
+                        gain_target = std::min(max_gain, gain + margin);
+                    }
+                }else if (meanLux > target_mean + dead_region) // image too bight
+                {
+                    int margin = meanLux - target_mean;
+                    // Consider Gain first
+                    if (gain > 160 /*good default*/)
+                    {
+                        gain_target= std::max(160, gain - margin);
+                    }
+                    else if(exposure > 8000 /*good default*/)
+                    {
+                        exposure_target = std::max(8000, exposure - 10*step_expo*margin);
+                    }
+                    else if (gain > min_gain)
+                    {
+                        gain_target = std::max(min_gain, gain - margin);
+                    }
+                    else if (exposure > min_exposure)
+                    {
+                        exposure_target = std::max(min_exposure, exposure - 10*step_expo*margin);
+                        
+                    }
+                }
+
+                sbuffer.push_front({exposure_target,gain_target});
+
+                SettingBuffer avg = {};
+                for (auto setting : sbuffer )
+                {
+                    avg.expo += setting.expo;
+                    avg.gain += setting.gain;
+                }
+                avg.expo /= sbuffer.size();
+                avg.gain /= sbuffer.size();
+
+                avg.expo = avg.expo / step_expo * step_expo;
+                avg.gain = avg.gain / step_gain * step_gain;
+
+                sbuffer.pop_back();
+
+                if (avg.expo != exposure)
+                {
+                    exposure = avg.expo;
                     sys->setOption(RS2_OPTION_EXPOSURE,exposure);
                 }
-                else if(gain  <  max_gain)
+
+                if (avg.gain != gain)
                 {
-                    gain = std::min(max_gain, gain + margin);
-                    sys->setOption(RS2_OPTION_GAIN,gain/4*4);
+                    gain = avg.gain;
+                    sys->setOption(RS2_OPTION_GAIN,gain);
                 }
-            }else if (meanLux > target_mean + dead_region) // image too bight
-            {
-                int margin = meanLux - target_mean;
-                // Consider Gain first
-                if (gain > 160 /*good default*/)
-                {
-                    gain= std::max(160, gain - margin);
-                    sys->setOption(RS2_OPTION_GAIN,gain/4*4);
-                }
-                else if(exposure > 8000 /*good default*/)
-                {
-                    exposure = std::max(8000, exposure - 100*margin);
-                    sys->setOption(RS2_OPTION_EXPOSURE,exposure);
-                }
-                else if (gain > min_gain)
-                {
-                    gain = std::max(min_gain, gain - margin);
-                    sys->setOption(RS2_OPTION_GAIN,gain/4*4);
-                }
-                else if (exposure > min_exposure)
-                {
-                    exposure = std::max(min_exposure, exposure - 100*margin);
-                    sys->setOption(RS2_OPTION_EXPOSURE,exposure);
-                }
+
+                std::cout << "exposure: " << avg.expo << ", gain= " << avg.gain << std::endl;
+
             }
-            std::cout << "exposure: " << exposure << ", gain= " << gain << std::endl;
 
             //cvWaitKey(1); // ~15ms
             frame_idx = irframe.seq;

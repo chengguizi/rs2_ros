@@ -323,6 +323,11 @@ float IrStereoDriver::getOption(rs2_option option)
     return _stereo->get_option(option); 
 }
 
+rs2::option_range IrStereoDriver::getOptionRange(rs2_option option)
+{
+    return _stereo->get_option_range(option); 
+}
+
 void IrStereoDriver::registerCallback(callbackType &cb)
 {
     _cblist.push_back(&cb);

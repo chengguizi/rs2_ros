@@ -16,6 +16,8 @@ public:
     const cv::Mat getHist(){return hist;}
     void showHistogram();
 
+    cv::Mat DeVignetting(cv::Mat src);
+
 private:
     const int p_width = 16;
 

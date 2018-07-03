@@ -24,6 +24,7 @@ public:
     ~IrStereoDriver();
     void setOption(rs2_option option, float value);
     float getOption(rs2_option option);
+    rs2::option_range getOptionRange(rs2_option option);
     void startPipe(int width, int height, int hz);
     rs2_intrinsics get_intrinsics() const; // only call this after pipe started
     rs2_extrinsics get_extrinsics_left_to_right() const;

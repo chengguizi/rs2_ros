@@ -171,3 +171,8 @@ void ExposureControl::showHistogram()
     imshow("histogram Peaks", histImage);
     cvWaitKey(1);
 }
+
+cv::Mat Devignetting(cv::Mat src)
+{
+    // cv::Mat kernel
+}
