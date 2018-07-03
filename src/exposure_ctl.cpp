@@ -127,7 +127,6 @@ void ExposureControl::calcWeights()
     assert(peak2.value >= 0.0 && peak2.value <= 1.0);
     weightBrightPeak = std::min(1.0, W_bright.a + W_bright.b * std::pow(peak2.value - W_bright.c, 2.0));
 
-    if (weightDarkPeak < 1 || weightBrightPeak < 1)
         std::cout << "weightDarkPeak= " << weightDarkPeak << "@ " << peak1.idx << "value=" << peak1.value
             << ", weightBrightPeak= " << weightBrightPeak << "@ " <<  peak2.idx << "value=" << peak2.value << std::endl;
 }
@@ -138,10 +137,10 @@ int ExposureControl::EstimateMeanLuminance()
     double P_acc_bright = 0;
 
     for (int i=0; i< p_width && i + peak1.idx < histSize; i++)
-        P_acc_dark += hist.at<float>(i + peak1.idx);
+        P_acc_dark += (i + peak1.idx)*hist.at<float>(i + peak1.idx);
     
     for (int i=0; i< p_width && i + peak2.idx < histSize; i++)
-        P_acc_bright += hist.at<float>(i + peak2.idx);
+        P_acc_bright += (i + peak2.idx)*hist.at<float>(i + peak2.idx);
 
 
     double luminanceExcludingRONI = P_acc - P_acc_dark*(1-weightDarkPeak) - P_acc_bright*(1-weightBrightPeak);
