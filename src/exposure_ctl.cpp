@@ -37,11 +37,16 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
     P_acc = cv::sum(img)[0];
     
     const double k = 5e3;
-    bkBrightness = std::min(1.0, k * P_acc / (img_width * img_height) / (exposure_usec * gain));
+    double raw_brightness = k * P_acc / (img_width * img_height) / (exposure_usec * gain);
+
+    // logistic function
+    double f_logistic = 1.0 / ( 1.0 + std::exp( - (raw_brightness - 6.0)) ); // input shouldbe around 0~1, output is strictly 0 ~ 1
+
+    bkBrightness = f_logistic; //std::min(1.0, f_logistic);
     std::cout << "bkBrightness: " << bkBrightness << std::endl;
 
-    const double c = 0.6;
-    const double a_min = 0.1;
+    const double c = 0.625;
+    const double a_min = 0.15;
     const double a_max = 0.75;
     W_dark.c = W_bright.c = c; // arbituary constant
 
@@ -94,10 +99,8 @@ void ExposureControl::findPeaks()
         }
     }
 
-    // if (!peak1.idx || !peak2.idx)
-    //     std::cerr << "peak zero detected!" << std::endl;
-    // else
-    //     std::cout << "peaks: " << peak1.idx << ", " << peak2.idx << std::endl;
+    if (!peak1.idx || !peak2.idx)
+        std::cerr << "peak zero detected!" << std::endl;
 
     if (peak1.idx > peak2.idx) // peak1 is always on the left of peak2
         std::swap(peak1,peak2);
@@ -113,7 +116,8 @@ void ExposureControl::calcWeights()
     weightBrightPeak = std::min(1.0, W_bright.a + W_bright.b * std::pow(peak2.value - W_bright.c, 2.0));
 
     if (weightDarkPeak < 1 || weightBrightPeak < 1)
-        std::cout << "weightDarkPeak= " << weightDarkPeak << ", weightBrightPeak= " << weightBrightPeak << std::endl;
+        std::cout << "weightDarkPeak= " << weightDarkPeak << "@ " << peak1.idx << "value=" << peak1.value
+            << ", weightBrightPeak= " << weightBrightPeak << "@ " <<  peak2.idx << "value=" << peak2.value << std::endl;
 }
 
 int ExposureControl::EstimateMeanLuminance()
