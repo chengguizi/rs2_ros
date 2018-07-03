@@ -72,7 +72,7 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
 
     }else
     {
-        ROS_WARN_STREAM( "Missed Frame(" << irframe.seq << ")" );
+        ROS_WARN_STREAM( "Missed Frame(" << seqleft << ")" );
     }
 }
 
@@ -226,49 +226,46 @@ int main(int argc, char * argv[]) try
             const static int min_gain = 16;
             const static int dead_region = 10;
 
-            bool expo_changed = true;
+            bool expo_changed = false;
             if (meanLux < target_mean - dead_region) // image too dark
             {
+                int margin = target_mean - meanLux;
                 // Consider Exposure first
                 if (exposure < max_exposure)
                 {
-                    exposure = std::min(max_exposure, exposure + 100*abs(meanLux-target_mean));
+                    exposure = std::min(max_exposure, exposure + 100*margin);
                     sys->setOption(RS2_OPTION_EXPOSURE,exposure);
                 }
                 else if(gain  <  max_gain)
                 {
-                    gain = std::min(max_gain, gain + abs(meanLux-target_mean));
+                    gain = std::min(max_gain, gain + margin);
                     sys->setOption(RS2_OPTION_GAIN,gain/4*4);
                 }
             }else if (meanLux > target_mean + dead_region) // image too bight
             {
+                int margin = meanLux - target_mean;
                 // Consider Gain first
                 if (gain > 160 /*good default*/)
                 {
-                    gain= std::max(160, gain - abs(meanLux-target_mean));
+                    gain= std::max(160, gain - margin);
                     sys->setOption(RS2_OPTION_GAIN,gain/4*4);
                 }
                 else if(exposure > 8000 /*good default*/)
                 {
-                    exposure = std::max(8000, exposure - 100*abs(meanLux-target_mean));
+                    exposure = std::max(8000, exposure - 100*margin);
                     sys->setOption(RS2_OPTION_EXPOSURE,exposure);
                 }
                 else if (gain > min_gain)
                 {
-                    gain = std::max(min_gain, gain - abs(meanLux-target_mean));
+                    gain = std::max(min_gain, gain - margin);
                     sys->setOption(RS2_OPTION_GAIN,gain/4*4);
                 }
                 else if (exposure > min_exposure)
                 {
-                    exposure = std::max(min_exposure, exposure - 100*abs(meanLux-target_mean));
+                    exposure = std::max(min_exposure, exposure - 100*margin);
                     sys->setOption(RS2_OPTION_EXPOSURE,exposure);
                 }
             }
-                
-
-            exposure = std::min (15000, std::max (500, exposure));
-            //gain = std::min (248, std::max (16, gain));
-
             std::cout << "exposure: " << exposure << ", gain= " << gain << std::endl;
 
             //cvWaitKey(1); // ~15ms
