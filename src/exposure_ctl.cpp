@@ -64,8 +64,6 @@ void ExposureControl::findPeaks()
 {
     peak1 = {};
     peak2 = {};
-    peak1.idx = -1;
-    peak2.idx = -1;
 
     enum Slope{
         ASCENDING,
@@ -104,14 +102,14 @@ void ExposureControl::findPeaks()
     if (peak1.idx > peak2.idx) // peak1 is always on the left of peak2
         std::swap(peak1,peak2);
 
-    if (peak2.idx == -1) // both peaks 
+    if (peak2.idx == 0) // both peaks 
     {
         std::cerr << "both peaks are idx zero" << std::endl;
         exit(1);
     }
 
     const int threshold = 5;
-    if ( peak1.idx == -1 )
+    if ( peak1.idx == 0 )
     {
         if (peak2.idx < 128 - threshold) // means peak2 is dark
             std::swap(peak1,peak2);
@@ -150,6 +148,11 @@ int ExposureControl::EstimateMeanLuminance()
         (1 - peak1.value*(1-weightDarkPeak) - peak2.value*(1-weightBrightPeak));
 
     double MeanLuminance = luminanceExcludingRONI / sizeExcludingRONI;
+
+    if ( MeanLuminance <  20 ) // detect wrong stuff!
+    {
+        std::cout  << "P_acc: " << P_acc << ", P_acc_dark: " << P_acc_dark <<  ", P_acc_bright: " << P_acc_bright << std::endl;
+    }
 
     std::cout << "MeanLuminance: " << (int)MeanLuminance << std::endl;
 
