@@ -30,7 +30,8 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
         }
         histPeaks.at<float>(i) = sum;
     }
-    normalize(histPeaks, histPeaks,1,0,cv::NORM_L1);
+    // SHOULD NOT NORMALISE PEAKS
+    //normalize(histPeaks, histPeaks,1,0,cv::NORM_L1);
 
     img_width = img.cols;
     img_height = img.rows;
@@ -46,9 +47,9 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
     std::cout << "bkBrightness: " << bkBrightness << std::endl;
     assert (bkBrightness>=0 && bkBrightness<=1);
 
-    const double c = 0.625;
+    const double c = 0.6;
     const double a_min = 0.15;
-    const double a_max = 0.75;
+    const double a_max = 0.8;
     W_dark.c = W_bright.c = c; // arbituary constant
 
     W_dark.a = a_max - bkBrightness*(a_max-a_min);
@@ -121,12 +122,13 @@ void ExposureControl::findPeaks()
 
 void ExposureControl::calcWeights()
 {
-    assert(peak1.value >= 0.0 && peak1.value <= 1.0);
+    assert( ( peak1.value - 1.0 )< 1.0e-3 );
     weightDarkPeak = std::min(1.0, W_dark.a + W_dark.b * std::pow(peak1.value - W_dark.c, 2.0));
 
-    assert(peak2.value >= 0.0 && peak2.value <= 1.0);
+    assert(  ( peak2.value -  1.0) < 1.0e-3 );
     weightBrightPeak = std::min(1.0, W_bright.a + W_bright.b * std::pow(peak2.value - W_bright.c, 2.0));
 
+    if (weightDarkPeak < 1 or weightBrightPeak < 1)
         std::cout << "weightDarkPeak= " << weightDarkPeak << "@ " << peak1.idx << "value=" << peak1.value
             << ", weightBrightPeak= " << weightBrightPeak << "@ " <<  peak2.idx << "value=" << peak2.value << std::endl;
 }
@@ -148,7 +150,7 @@ int ExposureControl::EstimateMeanLuminance()
 
     double MeanLuminance = luminanceExcludingRONI / sizeExcludingRONI;
 
-    if ( true ) // detect wrong stuff!
+    if ( false ) // detect wrong stuff!
     {
         std::cout  << "P_acc: " << P_acc << ", P_acc_dark: " << P_acc_dark <<  ", P_acc_bright: " << P_acc_bright << std::endl;
     }
