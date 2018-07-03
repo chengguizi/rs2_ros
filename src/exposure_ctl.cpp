@@ -113,7 +113,8 @@ void ExposureControl::calcWeights()
     weightBrightPeak = std::min(1.0, W_bright.a + W_bright.b * std::pow(peak2.value - W_bright.c, 2.0));
 
     if (weightDarkPeak < 1 || weightBrightPeak < 1)
-        std::cout << "weightDarkPeak= " << weightDarkPeak << ", weightBrightPeak= " << weightBrightPeak << std::endl;
+        std::cout << "weightDarkPeak= " << weightDarkPeak << "@ " << peak1.idx << "value=" << peak1.value
+            << ", weightBrightPeak= " << weightBrightPeak << "@ " <<  peak2.idx << "value=" << peak2.value << std::endl;
 }
 
 int ExposureControl::EstimateMeanLuminance()
