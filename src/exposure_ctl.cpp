@@ -8,6 +8,7 @@
 #include <utility>
 #include <cmath>
 #include <cassert>
+#include <string>
 
 
 void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize, bool normalisedtoOne)
@@ -87,10 +88,12 @@ void ExposureControl::findPeaks()
                     peak2 = peak1;
                     peak1.idx = i-1;
                     peak1.value = pre;
+                    peak1.valid = true;
                 }else if (pre > peak2.value)
                 {
                     peak2.idx = i-1;
                     peak2.value = pre;
+                    peak2.valid = true;
                 }
             }
             lastSlope = DECENDING;
@@ -101,32 +104,40 @@ void ExposureControl::findPeaks()
         }
     }
 
+    // after the loop, peak1 is the highest peak, peak2 is the 2nd highest
+
     if (peak1.idx > peak2.idx) // peak1 is always on the left of peak2
         std::swap(peak1,peak2);
 
-    if (peak2.idx == 0) // both peaks 
+    // check if peak1 is indeed dark
+    const int threshold = 5;
+    if (peak1.valid && peak1.idx > 128 - threshold) // means both peak1 && peak2 bright
     {
-        std::cerr << "both peaks are idx zero" << std::endl;
-        exit(1);
+        peak1.valid = false;
     }
 
-    const int threshold = 5;
-    if ( peak1.idx == 0 )
+    if (peak2.valid && peak2.idx < 128 + threshold) // means both peak1 && peak2 dark
     {
-        if (peak2.idx < 128 - threshold) // means peak2 is dark
-            std::swap(peak1,peak2);
+        peak2.valid = false;
     }
-    
 
 }
 
 void ExposureControl::calcWeights()
 {
     assert( ( peak1.value - 1.0 )< 1.0e-3 );
-    weightDarkPeak = std::min(1.0, W_dark.a + W_dark.b * std::pow(peak1.value - W_dark.c, 2.0));
+
+    if (peak1.valid)
+        weightDarkPeak = std::min(1.0, W_dark.a + W_dark.b * std::pow(peak1.value - W_dark.c, 2.0));
+    else
+        weightDarkPeak = 1.0;
 
     assert(  ( peak2.value -  1.0) < 1.0e-3 );
-    weightBrightPeak = std::min(1.0, W_bright.a + W_bright.b * std::pow(peak2.value - W_bright.c, 2.0));
+
+    if (peak2.valid)
+        weightBrightPeak = std::min(1.0, W_bright.a + W_bright.b * std::pow(peak2.value - W_bright.c, 2.0));
+    else
+        weightBrightPeak = 1.0;
 
     if (weightDarkPeak < 1 or weightBrightPeak < 1)
         std::cout << "weightDarkPeak= " << weightDarkPeak << "@ " << peak1.idx << "value=" << peak1.value
@@ -160,7 +171,7 @@ int ExposureControl::EstimateMeanLuminance()
     return (int)MeanLuminance;
 }
 
-void ExposureControl::showHistogram()
+void ExposureControl::showHistogram(int exposure_usec, int gain)
 {
     // initialised to be all white
     cv::Mat histImage = cv::Mat::ones(200 /*rows or height*/ , histSize*2 /*cols or width*/, CV_8UC3)*255; 
@@ -187,15 +198,19 @@ void ExposureControl::showHistogram()
         rectangle( histImage, cv::Point(i*binW, histImage.rows),
                    cv::Point((i+1)*binW - 1, histImage.rows - cvRound(hist.at<float>(i))),
                    color, -1, 8, 0 );
-        if (i == peak1.idx)
+        if (i == peak1.idx && peak1.valid)
             rectangle( histImage, cv::Point(i*binW, histImage.rows - cvRound(hist.at<float>(i))+1),
                    cv::Point((i+1)*binW - 1, 0),
                    cv::Scalar(100,100,100), -1, 8, 0 );
         
-        if (i == peak2.idx)
+        if (i == peak2.idx && peak2.valid)
             rectangle( histImage, cv::Point(i*binW, histImage.rows - cvRound(hist.at<float>(i))+1),
                    cv::Point((i+1)*binW - 1, 0),
                    cv::Scalar(200,200,200), -1, 8, 0 );
+        
+        // put text for exposure and gain
+        cv::putText (histImage, "expo:" +  std::to_string(exposure_usec), cv::Point(histSize*2 - 200, 25), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar::all(80));
+        cv::putText (histImage, "gain:" +  std::to_string(gain), cv::Point(histSize*2 - 200, 50), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar::all(80));
     }
         
     imshow("histogram Peaks", histImage);

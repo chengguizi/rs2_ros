@@ -144,7 +144,7 @@ int main(int argc, char * argv[]) try
 {
 
     // ros initialisation
-    ros::init(argc, argv, "rs2_camera");
+    ros::init(argc, argv, "rs2_ros");
     ros::NodeHandle nh("~");
 
     int w,h,hz;
@@ -233,9 +233,9 @@ int main(int argc, char * argv[]) try
 
             exposureCtl.calcHistogram(irframe.left,exposure,gain);
             int meanLux = exposureCtl.EstimateMeanLuminance();
-            exposureCtl.showHistogram();
+            exposureCtl.showHistogram(exposure, gain);
 
-            const static int target_mean = 70;
+            const static int target_mean = 80;
             const static int dead_region = 10;
 
             if (irframe.seq%2) // only process half of the frames, give some delays

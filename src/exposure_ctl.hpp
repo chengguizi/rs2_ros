@@ -14,7 +14,7 @@ public:
     void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256, bool normalisedtoOne = true);
     int EstimateMeanLuminance();
     const cv::Mat getHist(){return hist;}
-    void showHistogram();
+    void showHistogram(int exposure_usec = 0, int gain = 0);
 
     cv::Mat DeVignetting(cv::Mat src);
 
@@ -31,6 +31,7 @@ private:
     int histSize;
 
     struct Peak{
+        bool valid;
         int idx;
         float value;
     };
