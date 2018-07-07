@@ -279,12 +279,12 @@ int main(int argc, char * argv[]) try
                 }
 
                 // detect big jump
-                const double exposure_jump = 0.5;
-                const double gain_jump = 0.5;
+                const double exposure_jump = 0.33;
+                const double gain_jump = 0.33;
                 if ( abs(exposure_target - exposure)/ (double)exposure > exposure_jump 
                         || abs(gain_target - gain) / (double)gain >  gain_jump )
                 {
-                    const double speed = 0.2; // 0 to 1
+                    const double speed = 0.15; // 0 to 1
                     settingFilter.expo = exposure_target*speed + settingFilter.expo*(1-speed);
                     settingFilter.gain = gain_target*speed + settingFilter.gain*(1-speed);
 
