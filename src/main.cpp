@@ -150,6 +150,7 @@ int main(int argc, char * argv[]) try
     int w,h,hz;
     int exposure,gain,laser_power;
     bool auto_exposure;
+    bool _visualisation_on;
     nh.param("width", w,1280);
     nh.param("height",h,720);
     nh.param("frame_rate",hz,30);
@@ -157,6 +158,8 @@ int main(int argc, char * argv[]) try
     nh.param("auto_exposure",auto_exposure,false);
     nh.param("gain",gain,40);
     nh.param("laser_power",laser_power,150);
+
+    nh.param("visualisation_on",_visualisation_on,false);
 
     IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
 
@@ -233,7 +236,8 @@ int main(int argc, char * argv[]) try
 
             exposureCtl.calcHistogram(irframe.left,exposure,gain);
             int meanLux = exposureCtl.EstimateMeanLuminance();
-            exposureCtl.showHistogram(exposure, gain);
+            if (_visualisation_on)
+                exposureCtl.showHistogram(exposure, gain);
 
             const static int target_mean = 80;
             const static int dead_region = 10;
