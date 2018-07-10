@@ -1,7 +1,7 @@
 <launch>
     <node pkg="rs2_ros" type="rs2_ros" name="stereo" respawn="true" respawn_delay="2" output="screen">
-        <param name="width" value="1280" />
-        <param name="height" value="720" />
+        <param name="width" value="848" />
+        <param name="height" value="480" />
         <param name="frame_rate" value="15" />  <!-- value from 6, 15, 30 -->
         <param name="exposure" value="8000" />
         <param name="auto_exposure" value="false" />
