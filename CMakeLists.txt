@@ -32,10 +32,10 @@ add_executable(rs2_ros
   src/exposure_ctl.cpp
 )
 
-add_executable(rs2_fpga_bridge 
-  src/rs2_fpga_bridge.cpp
-  src/exposure_ctl.cpp
-)
+# add_executable(rs2_fpga_bridge 
+#   src/rs2_fpga_bridge.cpp
+#   src/exposure_ctl.cpp
+# )
 include_directories(${catkin_INCLUDE_DIRS}) # to find ros/ros.h
 # alternatively and more specifically:
 # target_include_directories(rs2_ros
@@ -56,9 +56,9 @@ target_link_libraries(rs2_ros
     ${OpenCV_LIBRARIES}
 )
 
-target_link_libraries(rs2_fpga_bridge
-  PRIVATE
-    ${catkin_LIBRARIES}
-    rs2_interface::rs2_interface # this automatically adds including using target property INTERFACE_INCLUDE_DIRECTORIES
-    ${OpenCV_LIBRARIES}
-)
+# target_link_libraries(rs2_fpga_bridge
+#   PRIVATE
+#     ${catkin_LIBRARIES}
+#     rs2_interface::rs2_interface # this automatically adds including using target property INTERFACE_INCLUDE_DIRECTORIES
+#     ${OpenCV_LIBRARIES}
+# )

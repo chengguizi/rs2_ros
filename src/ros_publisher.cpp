@@ -9,7 +9,7 @@
 
 #include <iostream>
 
-#define BUFFER_SIZE 3
+#define BUFFER_SIZE 50
 
 
 StereoCameraPublisher::StereoCameraPublisher()
@@ -48,6 +48,8 @@ void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv,
     // add header to the cameraInfo
     cameraInfo_left.header = header;
     cameraInfo_right.header = header;
+
+    std::cout << "Publishing: " << sensor_timestamp.toNSec() << std::endl;
 
     // convert to pointer format
     sensor_msgs::CameraInfoConstPtr cameraInfoPtr_left = boost::make_shared<sensor_msgs::CameraInfo>(cameraInfo_left);

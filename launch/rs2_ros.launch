@@ -1,5 +1,5 @@
 <launch>
-    <node pkg="rs2_ros" type="rs2_ros" name="stereo" respawn="true" respawn_delay="2" output="screen">
+    <node pkg="rs2_ros" type="rs2_ros" name="stereo" output="screen">
         <param name="width" value="848" />
         <param name="height" value="480" />
         <param name="frame_rate" value="6" />  <!-- value from 6, 15, 30 -->
@@ -10,4 +10,5 @@
 
         <param name="visualisation_on" value="false" />
     </node>
+    <!-- respawn="true" respawn_delay="2"  -->
 </launch>

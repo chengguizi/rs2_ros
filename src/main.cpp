@@ -40,6 +40,7 @@ struct irframe_t{
 void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const int w, const int h, \
     double tleft, double tright, uint64_t seqleft, uint64_t seqright) // irleft and irright are in the heap, must be deleted after use
 {
+    std::cout << "Frame: " << seqleft << std::endl;
     if ( irframe.inProcess.try_lock())
     {
         irframe.t_callback = std::chrono::system_clock::now().time_since_epoch().count();
@@ -201,9 +202,10 @@ int main(int argc, char * argv[]) try
     ExposureControl exposureCtl;
     const auto exposure_range =  sys->getOptionRange(RS2_OPTION_EXPOSURE);
     const auto gain_range = sys->getOptionRange(RS2_OPTION_GAIN);
-    const int max_exposure = 15000; // ~65Hz
+    const int max_exposure = 10000; // ~100Hz
     const int min_exposure = exposure_range.min; // == 20 us or 1/50000
     const int step_expo = exposure_range.step; // == 20
+    std::cout << "step_expo=" << step_expo << std::endl;
     const int max_gain = gain_range.max;
     const int min_gain = gain_range.min;
     const int step_gain = gain_range.step; // == 1
@@ -215,12 +217,22 @@ int main(int argc, char * argv[]) try
 
     SettingFilter settingFilter = {exposure,gain};
 
+    ros::AsyncSpinner spinner(2);
+	spinner.start();
+
     uint frame_idx = 0;
+
+    bool error_exit = false;
     while (ros::ok())
     {
 
         std::unique_lock<std::mutex> lk(irframe.inProcess);
-        irframe.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
+        auto ret = irframe.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
+
+        if (ret == std::cv_status::timeout){
+            error_exit = true;
+            break;
+        }
         
         if (frame_idx != irframe.seq)
         {   
@@ -253,7 +265,7 @@ int main(int argc, char * argv[]) try
                     // Consider Exposure first
                     if (exposure < max_exposure)
                     {
-                        exposure_target = std::min(max_exposure, exposure + 5*step_expo*margin);
+                        exposure_target = std::min(max_exposure, exposure + 50*margin);
                     }
                     else if(gain  <  max_gain)
                     {
@@ -269,7 +281,7 @@ int main(int argc, char * argv[]) try
                     }
                     else if(exposure > 8000 /*good default*/)
                     {
-                        exposure_target = std::max(8000, exposure - 5*step_expo*margin);
+                        exposure_target = std::max(8000, exposure - 50*margin);
                     }
                     else if (gain > min_gain)
                     {
@@ -277,29 +289,31 @@ int main(int argc, char * argv[]) try
                     }
                     else if (exposure > min_exposure)
                     {
-                        exposure_target = std::max(min_exposure, exposure - 5*step_expo*margin);
+                        exposure_target = std::max(min_exposure, exposure - 50*margin);
                         
                     }
                 }
 
                 // detect big jump
-                const double exposure_jump = 0.33;
-                const double gain_jump = 0.33;
-                if ( abs(exposure_target - exposure)/ (double)exposure > exposure_jump 
-                        || abs(gain_target - gain) / (double)gain >  gain_jump )
+                const double exposure_jump = 0.5;
+                const double gain_jump = 0.5;
+                if ( std::abs(exposure_target - exposure)/ (double)exposure > exposure_jump 
+                        || std::abs(gain_target - gain) / (double)gain >  gain_jump )
                 {
-                    const double speed = 0.15; // 0 to 1
+                    const double speed = 0.5; // 0 to 1
                     settingFilter.expo = exposure_target*speed + settingFilter.expo*(1-speed);
                     settingFilter.gain = gain_target*speed + settingFilter.gain*(1-speed);
 
-                    //rounding
-                    settingFilter.expo = std::round(settingFilter.expo/step_expo)*step_expo;
-                    settingFilter.gain = std::round(settingFilter.gain/step_gain)*step_gain;
+                    
                 }else
                 {
                     settingFilter.expo = exposure_target;
                     settingFilter.gain = gain_target;
                 }
+
+                //rounding
+                settingFilter.expo = std::round(settingFilter.expo/step_expo)*step_expo;
+                settingFilter.gain = std::round(settingFilter.gain/step_gain)*step_gain;
                 
 
                 if (settingFilter.expo != exposure)
@@ -322,12 +336,16 @@ int main(int argc, char * argv[]) try
             frame_idx = irframe.seq;
         }
         lk.unlock();
-        ros::spinOnce();
+        // ros::spinOnce();
         //std::this_thread::sleep_for(std::chrono::nanoseconds(100));
 
     }
 
     delete sys;
+
+    if (error_exit)
+        exit(-1);
+
     std::cout << "main() exits" << std::endl;
 
     return EXIT_SUCCESS;
