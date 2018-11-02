@@ -76,10 +76,12 @@ void IrStereoDriver::init()
 
         //To help with the boilerplate code of waiting for a device to connect
         //The SDK provides the rs2::device_hub class
-        rs2::device_hub device_hub(ctx);
+        // rs2::device_hub device_hub(ctx);
 
         //Using the device_hub we can block the program until a device connects
-        selected_device = device_hub.wait_for_device();
+        // selected_device = device_hub.wait_for_device();
+
+        exit(-1);
     }
     else
     {
