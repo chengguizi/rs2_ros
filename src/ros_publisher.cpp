@@ -49,7 +49,7 @@ void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv,
     cameraInfo_left.header = header;
     cameraInfo_right.header = header;
 
-    std::cout << "Publishing: " << sensor_timestamp.toNSec() << std::endl;
+    std::cout << "Publishing: " << sensor_timestamp << std::endl;
 
     // convert to pointer format
     sensor_msgs::CameraInfoConstPtr cameraInfoPtr_left = boost::make_shared<sensor_msgs::CameraInfo>(cameraInfo_left);

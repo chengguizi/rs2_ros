@@ -22,6 +22,8 @@
 
 #include <ros/ros.h>
 
+#include <rs2_ros/CameraStats.h>
+
 #include "ros_publisher.hpp"
 #include "exposure_ctl.hpp"
 
@@ -55,7 +57,7 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
         if (seqleft == 0)
         {
             irframe.t_base = t_sensor;
-            ROS_INFO_STREAM("ImageCallback(): First frame successfully captured!");
+            ROS_WARN("RealSense: First frame successfully captured!");
         }
         else
         {
@@ -146,21 +148,24 @@ int main(int argc, char * argv[]) try
 
     // ros initialisation
     ros::init(argc, argv, "rs2_ros");
-    ros::NodeHandle nh("~");
+    ros::NodeHandle nh;
+    ros::NodeHandle local_nh("~");
+
+    ros::Publisher _camstats_pub = local_nh.advertise<rs2_ros::CameraStats>("camera_stats",10);
 
     int w,h,hz;
     int exposure,gain,laser_power;
     bool auto_exposure;
     bool _visualisation_on;
-    nh.param("width", w,1280);
-    nh.param("height",h,720);
-    nh.param("frame_rate",hz,30);
-    nh.param("exposure",exposure,20000);
-    nh.param("auto_exposure",auto_exposure,false);
-    nh.param("gain",gain,40);
-    nh.param("laser_power",laser_power,150);
+    local_nh.param("width", w,1280);
+    local_nh.param("height",h,720);
+    local_nh.param("frame_rate",hz,30);
+    local_nh.param("exposure",exposure,20000);
+    local_nh.param("auto_exposure",auto_exposure,false);
+    local_nh.param("gain",gain,40);
+    local_nh.param("laser_power",laser_power,150);
 
-    nh.param("visualisation_on",_visualisation_on,false);
+    local_nh.param("visualisation_on",_visualisation_on,false);
 
     IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
 
@@ -189,7 +194,7 @@ int main(int argc, char * argv[]) try
     sys->registerCallback(stereoImageCallback);
 
 
-    StereoCameraPublisher pub(nh); // start with private scope
+    StereoCameraPublisher pub(local_nh); // start with private scope
 
     //signal(SIGINT, signalHandler);
 
@@ -244,14 +249,23 @@ int main(int argc, char * argv[]) try
             sensor_timestamp.fromNSec(irframe.t);
 
             
+
             pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
 
             exposureCtl.calcHistogram(irframe.left,exposure,gain);
             int meanLux = exposureCtl.EstimateMeanLuminance();
-            if (_visualisation_on)
-                exposureCtl.showHistogram(exposure, gain);
+            // if (_visualisation_on)
+                // exposureCtl.showHistogram(exposure, gain);
 
-            const static int target_mean = 80;
+            // publish statistics
+            rs2_ros::CameraStats stats_msg;
+            stats_msg.header.stamp = sensor_timestamp;
+            stats_msg.exposure = exposure;
+            stats_msg.gain = gain;
+            stats_msg.meanLux = meanLux;
+            _camstats_pub.publish(stats_msg);
+
+            const static int target_mean = 110;
             const static int dead_region = 10;
 
             if (irframe.seq%2) // only process half of the frames, give some delays
@@ -352,11 +366,11 @@ int main(int argc, char * argv[]) try
 }
 catch (const rs2::error & e)
 {
-    std::cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << std::endl;
+    ROS_ERROR_STREAM( "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() );
     return EXIT_FAILURE;
 }
 catch (const std::exception& e)
 {
-    std::cerr << e.what() << std::endl;
+    ROS_ERROR_STREAM( e.what() );
     return EXIT_FAILURE;
 }

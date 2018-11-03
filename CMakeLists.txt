@@ -15,16 +15,31 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   image_transport
   cv_bridge
+
+  message_generation
 )
 
 find_package(OpenCV REQUIRED)
 
+add_message_files(
+  FILES
+  CameraStats.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
+
 catkin_package(
 #  INCLUDE_DIRS
 #  LIBRARIES rs2_ros
-#  CATKIN_DEPENDS roscpp std_msgs
+ CATKIN_DEPENDS message_runtime
 #  DEPENDS system_lib
 )
+
+
+
 
 add_executable(rs2_ros 
   src/main.cpp

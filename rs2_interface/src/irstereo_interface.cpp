@@ -276,6 +276,7 @@ void IrStereoDriver::process()
         int w = frame_left.get_width();
         int h = frame_left.get_height();
 
+        // Refer to https://github.com/IntelRealSense/librealsense/issues/2188
         //metadata in usec
         uint64_t meta_toa = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
         // auto meta_sensortime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP);
