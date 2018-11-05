@@ -169,6 +169,9 @@ int main(int argc, char * argv[]) try
 
     IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
 
+    if (laser_power == 0)
+        sys->setOption(RS2_OPTION_EMITTER_ENABLED,0);
+
     // for more options, please refer rs_option.h
     if (auto_exposure)
         sys->setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
@@ -184,10 +187,10 @@ int main(int argc, char * argv[]) try
 
     ROS_ASSERT (sys->getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) == auto_exposure);
 
-    std::cout << "shutter speed= 1/" << 1/(exposure*1e-6) << ", gain= " << gain << std::endl;
+    ROS_INFO_STREAM("Realsense: Initial shutter speed= 1/" << 1/(exposure*1e-6) << ", gain= " << gain );
 
-    const auto window_name_l = "Display Image Left";
-    const auto window_name_r = "Display Image Right";
+    // const auto window_name_l = "Display Image Left";
+    // const auto window_name_r = "Display Image Right";
     //cv::namedWindow(window_name_l, cv::WINDOW_AUTOSIZE);
     //cv::namedWindow(window_name_r, cv::WINDOW_AUTOSIZE);
 
@@ -210,11 +213,29 @@ int main(int argc, char * argv[]) try
     const int max_exposure = 10000; // ~100Hz
     const int min_exposure = exposure_range.min; // == 20 us or 1/50000
     const int step_expo = exposure_range.step; // == 20
-    std::cout << "step_expo=" << step_expo << std::endl;
+    // std::cout << "step_expo=" << step_expo << std::endl;
     const int max_gain = gain_range.max;
     const int min_gain = gain_range.min;
     const int step_gain = gain_range.step; // == 1
 
+    //////////////////////////////////
+    //// Empirical Latency Test
+    //////////////////////////////////
+    
+    {
+        ROS_INFO("Start Empirical Latency Test");
+        const int N_test = 100;
+        auto t1 = ros::Time::now();
+        for (int i=0; i<N_test; i++){
+            auto exposure = sys->getOption(RS2_OPTION_EXPOSURE);
+        }
+        auto t2 = ros::Time::now();
+        double latency = (t2-t1).toSec()/N_test/2;
+        ROS_INFO_STREAM("One-way Latency = " << latency*1000 << "ms");
+    }
+    
+
+    /////////// Test End /////////////
     struct SettingFilter{
         int expo;
         int gain;
@@ -235,6 +256,7 @@ int main(int argc, char * argv[]) try
         auto ret = irframe.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
 
         if (ret == std::cv_status::timeout){
+            ROS_ERROR("Realsense: Wait timeout for new frame arrival. Exiting");
             error_exit = true;
             break;
         }
