@@ -278,13 +278,16 @@ void IrStereoDriver::process()
 
         // Refer to https://github.com/IntelRealSense/librealsense/issues/2188
         //metadata in usec
-        uint64_t meta_toa = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
-        // auto meta_sensortime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP);
-        // auto meta_frametime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP);
-        uint64_t meta_backendtime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP);
+        
+        auto meta_sensortime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP); // middle of shutter
+        auto meta_frametime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP); // start UVC frame tx
 
-        const uint64_t delay_sensor_to_frame = 1e7; // 10000us delay, RS2_FRAME_METADATA_FRAME_TIMESTAMP - RS2_FRAME_METADATA_SENSOR_TIMESTAMP
-        uint64_t delay_uvc_to_frontend = meta_toa - meta_backendtime ; // ~16000us delay meta_toa - meta_backendtime
+        uint64_t meta_backendtime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP); // usb controller to kernel
+        uint64_t meta_toa = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL); // kernel to user space
+
+        const uint64_t delay_sensor_to_frame = meta_frametime - meta_sensortime; // 1e7; // 10000us delay, RS2_FRAME_METADATA_FRAME_TIMESTAMP - RS2_FRAME_METADATA_SENSOR_TIMESTAMP
+        // std::cout << std::fixed << delay_sensor_to_frame/1e6 << "ms" << std::endl;
+        // uint64_t delay_uvc_to_frontend = meta_toa - meta_backendtime ; // ~16000us delay meta_toa - meta_backendtime
         uint64_t sensor_time = meta_backendtime * 1e6 - delay_sensor_to_frame; // in nanosecond, epoch time
 
         rs2::video_frame frame_right = dataset.get_infrared_frame(2);

@@ -27,6 +27,9 @@
 #include "ros_publisher.hpp"
 #include "exposure_ctl.hpp"
 
+#include <fstream>
+#include <sstream>
+
 struct irframe_t{
     cv::Mat left;
     cv::Mat right;
@@ -37,6 +40,8 @@ struct irframe_t{
     std::mutex inProcess;
     std::condition_variable cv;
 }irframe;
+
+std::ostringstream streamout;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
 void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const int w, const int h, \
@@ -79,6 +84,8 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const 
     {
         ROS_WARN_STREAM( "Missed Frame(" << seqleft << ")" );
     }
+
+    streamout << (irframe.t_callback - t_sensor)/1.0e6 << " " << std::fixed <<t_sensor/1.0e6 << std::endl;
 }
 
 void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::CameraInfo& left, sensor_msgs::CameraInfo& right)
@@ -228,6 +235,10 @@ int main(int argc, char * argv[]) try
     uint frame_idx = 0;
 
     bool error_exit = false;
+
+    std::ofstream fout;
+    fout.open("rs2_driver_jitter.txt");
+
     while (ros::ok())
     {
 
@@ -356,6 +367,10 @@ int main(int argc, char * argv[]) try
     }
 
     delete sys;
+
+    std::cout << "Writing to file..." << std::endl;
+    fout << "jitter-in-millisecond-reference-to-uvc-clock" << std::endl << streamout.str();
+    fout.close();
 
     if (error_exit)
         exit(-1);
