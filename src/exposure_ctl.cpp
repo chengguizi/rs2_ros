@@ -10,6 +10,8 @@
 #include <cassert>
 #include <string>
 
+#include <ros/ros.h>
+
 
 void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize, bool normalisedtoOne)
 {
@@ -45,7 +47,7 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
     double f_logistic = 1.0 / ( 1.0 + std::exp( - (raw_brightness - 6.0)) ); // input shouldbe around 0~1, output is strictly 0 ~ 1
 
     bkBrightness = f_logistic; //std::min(1.0, f_logistic);
-    std::cout << "bkBrightness: " << bkBrightness << std::endl;
+    // std::cout << "bkBrightness: " << bkBrightness << std::endl;
     assert (bkBrightness>=0 && bkBrightness<=1);
 
     const double c = 0.6;
@@ -139,9 +141,15 @@ void ExposureControl::calcWeights()
     else
         weightBrightPeak = 1.0;
 
-    if (weightDarkPeak < 1 or weightBrightPeak < 1)
-        std::cout << "weightDarkPeak= " << weightDarkPeak << "@ " << peak1.idx << "value=" << peak1.value
-            << ", weightBrightPeak= " << weightBrightPeak << "@ " <<  peak2.idx << "value=" << peak2.value << std::endl;
+    if (weightDarkPeak < 1)
+        ROS_INFO_STREAM_THROTTLE(5,  "level " << peak1.idx  << " is suppressed to " << std::fixed << std::setprecision(2) << weightDarkPeak);
+
+    if ( weightBrightPeak < 1 )
+        ROS_INFO_STREAM_THROTTLE(5,  "level "  << peak2.idx << " is suppressed to " << std::fixed << std::setprecision(2) << weightBrightPeak);
+
+    // if (weightDarkPeak < 1 or weightBrightPeak < 1)
+        // std::cout << "weightDarkPeak= " << weightDarkPeak << "@ " << peak1.idx << "value=" << peak1.value
+        //     << ", weightBrightPeak= " << weightBrightPeak << "@ " <<  peak2.idx << "value=" << peak2.value << std::endl;
 }
 
 int ExposureControl::EstimateMeanLuminance()
@@ -161,12 +169,12 @@ int ExposureControl::EstimateMeanLuminance()
 
     double MeanLuminance = luminanceExcludingRONI / sizeExcludingRONI;
 
-    if ( false ) // detect wrong stuff!
-    {
-        std::cout  << "P_acc: " << P_acc << ", P_acc_dark: " << P_acc_dark <<  ", P_acc_bright: " << P_acc_bright << std::endl;
-    }
+    // if ( false ) // detect wrong stuff!
+    // {
+    //     std::cout  << "P_acc: " << P_acc << ", P_acc_dark: " << P_acc_dark <<  ", P_acc_bright: " << P_acc_bright << std::endl;
+    // }
 
-    std::cout << "MeanLuminance: " << (int)MeanLuminance << std::endl;
+    ROS_INFO_STREAM_THROTTLE(30, "MeanLuminance: " << (int)MeanLuminance);
 
     return (int)MeanLuminance;
 }

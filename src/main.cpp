@@ -47,17 +47,25 @@ std::ostringstream streamout;
 void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const int w, const int h, \
     double tleft, double tright, uint64_t seqleft, uint64_t seqright) // irleft and irright are in the heap, must be deleted after use
 {
-    std::cout << "Frame: " << seqleft << std::endl;
+    // std::cout << "Frame: " << seqleft << std::endl;
     if ( irframe.inProcess.try_lock())
     {
-        irframe.t_callback = std::chrono::system_clock::now().time_since_epoch().count();
+        
 
-        if (tleft != tright)
+        if (tleft != tright){
             ROS_WARN_STREAM( "ImageCallback(): stereo time sync inconsistent!" );
-        irframe.t = tleft;
-        if (seqleft != seqright)
+            return;
+        }
+            
+        
+        if (seqleft != seqright){
             ROS_WARN_STREAM( "ImageCallback(): stereo frame sequence sync inconsistent!" );
+            return;
+        }
+            
         irframe.seq = seqleft;
+        // irframe.t = tleft;
+        irframe.t_callback = ros::Time::now().toNSec(); //std::chrono::system_clock::now().time_since_epoch().count();
 
         if (seqleft == 0)
         {
@@ -171,6 +179,7 @@ int main(int argc, char * argv[]) try
     local_nh.param("auto_exposure",auto_exposure,false);
     local_nh.param("gain",gain,40);
     local_nh.param("laser_power",laser_power,150);
+    
 
     local_nh.param("visualisation_on",_visualisation_on,false);
 
@@ -217,7 +226,8 @@ int main(int argc, char * argv[]) try
     ExposureControl exposureCtl;
     const auto exposure_range =  sys->getOptionRange(RS2_OPTION_EXPOSURE);
     const auto gain_range = sys->getOptionRange(RS2_OPTION_GAIN);
-    const int max_exposure = 10000; // ~100Hz
+    int max_exposure; // ~100Hz
+    local_nh.param("max_exposure",max_exposure,10000);
     const int min_exposure = exposure_range.min; // == 20 us or 1/50000
     const int step_expo = exposure_range.step; // == 20
     // std::cout << "step_expo=" << step_expo << std::endl;
@@ -262,6 +272,8 @@ int main(int argc, char * argv[]) try
 
     while (ros::ok())
     {
+        static double min_duration = 1, max_duration = 0 , moving_avg_duration = 0;
+        static ros::Time last_stamp = ros::Time(0);
 
         std::unique_lock<std::mutex> lk(irframe.inProcess);
         auto ret = irframe.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
@@ -281,7 +293,34 @@ int main(int argc, char * argv[]) try
             ros::Time sensor_timestamp; 
             sensor_timestamp.fromNSec(irframe.t);
 
+            ////// Report Jitter /////////////
+
+            if (!last_stamp.isZero()){
+                
+                double delta_t = (sensor_timestamp - last_stamp).toSec();
+
+                if (delta_t > max_duration)
+                    max_duration = delta_t;
+                if (delta_t < min_duration)
+                    min_duration = delta_t;
+                if (moving_avg_duration == 0)
+                    moving_avg_duration = delta_t;
+                else
+                    moving_avg_duration = 0.98*moving_avg_duration + 0.02*delta_t;
+                
+                ROS_INFO_STREAM_THROTTLE(30,"min_duration=" << std::fixed << std::setprecision(2) << min_duration*1000 << "ms, " 
+                    << "moving_avg=" << moving_avg_duration*1000 << "ms, max_duration=" << max_duration*1000 << "ms");
+                
+                double jitter = delta_t - moving_avg_duration;
+                
+                if ( std::abs(jitter/moving_avg_duration) > 0.3){// 30% deviation
+                    ROS_ERROR_STREAM("Jitter Detected: avg_gap=" << moving_avg_duration << ", but now=" << delta_t);
+                } 
+                
+            }
             
+            last_stamp = sensor_timestamp;
+            //////////////////////////////////
 
             pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
 
@@ -375,7 +414,7 @@ int main(int argc, char * argv[]) try
                     sys->setOption(RS2_OPTION_GAIN,gain);
                 }
 
-                std::cout << "exposure: " << exposure << ", gain= " << gain << std::endl;
+                // std::cout << "exposure: " << exposure << ", gain= " << gain << std::endl;
 
             }
 
