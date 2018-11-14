@@ -2,11 +2,11 @@
     <node enable-coredumps="false" pkg="rs2_ros" type="rs2_ros" name="stereo" output="screen">
         <param name="width" value="848" />
         <param name="height" value="480" />
-        <param name="frame_rate" value="6" />  <!-- value from 6, 15, 30 -->
-        <param name="exposure" value="8000" />
+        <param name="frame_rate" value="15" />  <!-- value from 6, 15, 30 -->
+        <param name="exposure" value="10000" />
         <param name="max_exposure" value="12000" />
         <param name="auto_exposure" value="false" />
-        <param name="gain" value="160" /> <!-- value from 16 - 248 -->
+        <param name="gain" value="200" /> <!-- value from 16 - 248 -->
         <param name="laser_power" value="0" /> <!-- from 0 to 360 -->
 
         <param name="visualisation_on" value="false" />
