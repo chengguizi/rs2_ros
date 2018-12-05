@@ -9,7 +9,7 @@
 
 #include <iostream>
 
-#define BUFFER_SIZE 50
+#define BUFFER_SIZE 20
 
 
 StereoCameraPublisher::StereoCameraPublisher()

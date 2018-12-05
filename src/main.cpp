@@ -338,7 +338,7 @@ int main(int argc, char * argv[]) try
             _camstats_pub.publish(stats_msg);
 
             const static int target_mean = 110;
-            const static int dead_region = 10;
+            const static int dead_region = 5;
 
             if (irframe.seq%2) // only process half of the frames, give some delays
             {
@@ -347,7 +347,7 @@ int main(int argc, char * argv[]) try
 
                 if (meanLux < target_mean - dead_region) // image too dark
                 {
-                    int margin = target_mean - meanLux;
+                    int margin = (target_mean - dead_region) - meanLux;
                     // Consider Exposure first
                     if (exposure < max_exposure)
                     {
@@ -359,7 +359,7 @@ int main(int argc, char * argv[]) try
                     }
                 }else if (meanLux > target_mean + dead_region) // image too bight
                 {
-                    int margin = meanLux - target_mean;
+                    int margin = meanLux - (target_mean + dead_region);
                     // Consider Gain first
                     if (gain > 160 /*good default*/)
                     {
@@ -381,12 +381,12 @@ int main(int argc, char * argv[]) try
                 }
 
                 // detect big jump
-                const double exposure_jump = 0.5;
-                const double gain_jump = 0.5;
+                const double exposure_jump = 0.3;
+                const double gain_jump = 0.3;
                 if ( std::abs(exposure_target - exposure)/ (double)exposure > exposure_jump 
                         || std::abs(gain_target - gain) / (double)gain >  gain_jump )
                 {
-                    const double speed = 0.5; // 0 to 1
+                    const double speed = 0.3; // 0 to 1
                     settingFilter.expo = exposure_target*speed + settingFilter.expo*(1-speed);
                     settingFilter.gain = gain_target*speed + settingFilter.gain*(1-speed);
 
