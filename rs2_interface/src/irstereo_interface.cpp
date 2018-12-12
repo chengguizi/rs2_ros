@@ -46,10 +46,12 @@ std::string get_sensor_name(const rs2::sensor& sensor)
 // class member functions
 ////////////////////////////////
 
-IrStereoDriver::IrStereoDriver(std::string dev_name_str, int laser_power) : _isStreaming(false), _dev_name_str(dev_name_str), _laser_power(laser_power)
+IrStereoDriver::IrStereoDriver(std::string dev_name_str, int laser_power) : _dev_name_str(dev_name_str), _laser_power(laser_power), _isStreaming(false)
 {
     _pipe = new rs2::pipeline();
     init();
+
+    _cblist.clear();
 }
 
 IrStereoDriver::~IrStereoDriver()
@@ -261,13 +263,15 @@ void IrStereoDriver::process()
 
     while(_isStreaming)
     {
+
         rs2::frameset dataset = _pipe->wait_for_frames(10000); // Wait for next set of frames from the camera
         
-        uint64_t now = std::chrono::system_clock::now().time_since_epoch().count();
+        // uint64_t now = std::chrono::system_clock::now().time_since_epoch().count();
 
         int num_frames = dataset.size();
         if (num_frames != 2)
             std::cerr << "frameset contains " << num_frames << "frames, should be 2."<< std::endl;
+
 
         rs2::video_frame frame_left = dataset.get_infrared_frame(1);
         double time_left = frame_left.get_timestamp()/1000;
@@ -304,15 +308,17 @@ void IrStereoDriver::process()
         // uint64_t delay_uvc_to_frontend2 = meta_toa2 - meta_backendtime2;
         // std::cout << delay_uvc_to_frontend << "  " << delay_uvc_to_frontend2 << std::endl;
 
+
         void* irleft = new char[w*h];
         memcpy(irleft,frame_left.get_data(),w*h);
 
         void* irright = new char[w*h];
         memcpy(irright,frame_right.get_data(),w*h);
 
-        for (callbackType* cb : _cblist)
+
+        for (callbackType cb : _cblist)
         {
-            (*cb)(sensor_time, irleft,irright,w,h,time_left,time_right,seq_left,seq_right);
+            (cb)(sensor_time, irleft, irright, w, h, time_left, time_right, seq_left, seq_right);
             // time_left and time_right is time since boot of the realsense hardware
         }
 
@@ -335,7 +341,7 @@ rs2::option_range IrStereoDriver::getOptionRange(rs2_option option)
     return _stereo->get_option_range(option); 
 }
 
-void IrStereoDriver::registerCallback(callbackType &cb)
+void IrStereoDriver::registerCallback(callbackType cb)
 {
-    _cblist.push_back(&cb);
+    _cblist.push_back(cb);
 }

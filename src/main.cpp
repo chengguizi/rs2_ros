@@ -44,13 +44,12 @@ struct irframe_t{
 std::ostringstream streamout;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
-void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, const int w, const int h, \
+void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, int w, int h, \
     double tleft, double tright, uint64_t seqleft, uint64_t seqright) // irleft and irright are in the heap, must be deleted after use
 {
     // std::cout << "Frame: " << seqleft << std::endl;
     if ( irframe.inProcess.try_lock())
     {
-        
 
         if (tleft != tright){
             ROS_WARN_STREAM( "ImageCallback(): stereo time sync inconsistent!" );
@@ -210,31 +209,6 @@ int main(int argc, char * argv[]) try
     //cv::namedWindow(window_name_l, cv::WINDOW_AUTOSIZE);
     //cv::namedWindow(window_name_r, cv::WINDOW_AUTOSIZE);
 
-    sys->registerCallback(stereoImageCallback);
-
-
-    StereoCameraPublisher pub(local_nh); // start with private scope
-
-    //signal(SIGINT, signalHandler);
-
-    sys->startPipe(w,h,hz);
-
-    sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
-    getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);
-
-
-    ExposureControl exposureCtl;
-    const auto exposure_range =  sys->getOptionRange(RS2_OPTION_EXPOSURE);
-    const auto gain_range = sys->getOptionRange(RS2_OPTION_GAIN);
-    int max_exposure; // ~100Hz
-    local_nh.param("max_exposure",max_exposure,10000);
-    const int min_exposure = exposure_range.min; // == 20 us or 1/50000
-    const int step_expo = exposure_range.step; // == 20
-    // std::cout << "step_expo=" << step_expo << std::endl;
-    const int max_gain = gain_range.max;
-    const int min_gain = gain_range.min;
-    const int step_gain = gain_range.step; // == 1
-
     //////////////////////////////////
     //// Empirical Latency Test
     //////////////////////////////////
@@ -253,12 +227,47 @@ int main(int argc, char * argv[]) try
     
 
     /////////// Test End /////////////
+    
+
+    sys->registerCallback(stereoImageCallback);
+
+
+    StereoCameraPublisher pub(local_nh); // start with private scope
+
+    //signal(SIGINT, signalHandler);
+
+    //// Start RealSense Pipe
+    sys->startPipe(w,h,hz);
+
+    sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
+    getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);
+
+
+    ExposureControl exposureCtl;
+    const auto exposure_range =  sys->getOptionRange(RS2_OPTION_EXPOSURE);
+    const auto gain_range = sys->getOptionRange(RS2_OPTION_GAIN);
+    int max_exposure; // ~100Hz
+    local_nh.param("max_exposure",max_exposure,10000);
+    const int min_exposure = exposure_range.min; // == 20 us or 1/50000
+    const int step_expo = exposure_range.step; // == 20
+    // std::cout << "step_expo=" << step_expo << std::endl;
+    const int max_gain = gain_range.max;
+    const int min_gain = gain_range.min;
+    const int step_gain = gain_range.step; // == 1
+
+    
     struct SettingFilter{
         int expo;
         int gain;
     };
 
     SettingFilter settingFilter = {exposure,gain};
+
+    
+
+    ros::Duration(10).sleep();
+
+    std::cout << "Sleep ENDS" << std::endl;
 
     ros::AsyncSpinner spinner(2);
 	spinner.start();

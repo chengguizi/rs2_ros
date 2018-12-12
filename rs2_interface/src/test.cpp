@@ -26,8 +26,8 @@ struct irframe_t{
 }irframe;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
-void stereoImageCallback(unsigned long long dev_time, void* irleft, void* irright, const int w, const int h, \
-    double tleft, double tright, unsigned long long seqleft, unsigned long long seqright) // irleft and irright are in the heap, must be deleted after use
+void stereoImageCallback(unsigned long  dev_time, void* irleft, void* irright, const int w, const int h, \
+    double tleft, double tright, unsigned long  seqleft, unsigned long seqright) // irleft and irright are in the heap, must be deleted after use
 {
     if ( irframe.inProcess.try_lock())
     {
@@ -61,7 +61,7 @@ void stereoImageCallback(unsigned long long dev_time, void* irleft, void* irrigh
     }
 }
 
-int main(int argc, char * argv[]) try
+int main() try
 {
     IrStereoDriver* sys = new IrStereoDriver("RealSense D415");
 
