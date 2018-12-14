@@ -16,7 +16,7 @@ public:
     const cv::Mat getHist(){return hist;}
     void showHistogram(int exposure_usec = 0, int gain = 0);
 
-    cv::Mat DeVignetting(cv::Mat src);
+    // cv::Mat DeVignetting(cv::Mat src);
 
 private:
     const int p_width = 16;

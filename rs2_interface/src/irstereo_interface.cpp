@@ -48,6 +48,7 @@ std::string get_sensor_name(const rs2::sensor& sensor)
 
 IrStereoDriver::IrStereoDriver(std::string dev_name_str, int laser_power) : _dev_name_str(dev_name_str), _laser_power(laser_power), _isStreaming(false)
 {
+    // High CPU usage issue https://github.com/IntelRealSense/librealsense/issues/2037
     _pipe = new rs2::pipeline();
     init();
 
@@ -143,7 +144,7 @@ void IrStereoDriver::init()
     {
         //auto range = _stereo->get_option_range(RS2_OPTION_LASER_POWER);
         _stereo->set_option(RS2_OPTION_LASER_POWER,_laser_power);
-        ;
+
         std::cout << "set laser power = " << _stereo->get_option(RS2_OPTION_LASER_POWER) << std::endl;
     }else
         std::cerr << "Stereo Sensor does not support laser power options" << std::endl;

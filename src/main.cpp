@@ -182,7 +182,14 @@ int main(int argc, char * argv[]) try
 
     local_nh.param("visualisation_on",_visualisation_on,false);
 
+
+
     IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
+
+    // while (ros::ok()){
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    //     ROS_INFO("Waiting");
+    // }
 
     if (laser_power == 0)
         sys->setOption(RS2_OPTION_EMITTER_ENABLED,0);
@@ -219,6 +226,7 @@ int main(int argc, char * argv[]) try
         auto t1 = ros::Time::now();
         for (int i=0; i<N_test; i++){
             auto exposure = sys->getOption(RS2_OPTION_EXPOSURE);
+            (void) exposure;
         }
         auto t2 = ros::Time::now();
         double latency = (t2-t1).toSec()/N_test/2;
@@ -262,12 +270,6 @@ int main(int argc, char * argv[]) try
     };
 
     SettingFilter settingFilter = {exposure,gain};
-
-    
-
-    ros::Duration(10).sleep();
-
-    std::cout << "Sleep ENDS" << std::endl;
 
     ros::AsyncSpinner spinner(2);
 	spinner.start();
@@ -432,8 +434,7 @@ int main(int argc, char * argv[]) try
         }
         lk.unlock();
         // ros::spinOnce();
-        //std::this_thread::sleep_for(std::chrono::nanoseconds(100));
-
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     delete sys;
