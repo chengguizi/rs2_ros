@@ -171,6 +171,11 @@ int main(int argc, char * argv[]) try
     int exposure,gain,laser_power;
     bool auto_exposure;
     bool _visualisation_on;
+
+    double exposure_change_rate;
+    int target_mean;
+    int dead_region;
+
     local_nh.param("width", w,1280);
     local_nh.param("height",h,720);
     local_nh.param("frame_rate",hz,30);
@@ -178,6 +183,10 @@ int main(int argc, char * argv[]) try
     local_nh.param("auto_exposure",auto_exposure,false);
     local_nh.param("gain",gain,40);
     local_nh.param("laser_power",laser_power,150);
+
+    local_nh.param("exposure_change_rate",exposure_change_rate,1.0);
+    local_nh.param("target_mean",target_mean,110);
+    local_nh.param("dead_region",dead_region,5);
     
 
     local_nh.param("visualisation_on",_visualisation_on,false);
@@ -348,9 +357,6 @@ int main(int argc, char * argv[]) try
             stats_msg.meanLux = meanLux;
             _camstats_pub.publish(stats_msg);
 
-            const static int target_mean = 110;
-            const static int dead_region = 5;
-
             if (irframe.seq%2) // only process half of the frames, give some delays
             {
                 int exposure_target = exposure;
@@ -362,11 +368,12 @@ int main(int argc, char * argv[]) try
                     // Consider Exposure first
                     if (exposure < max_exposure)
                     {
-                        exposure_target = std::min(max_exposure, exposure + 50*margin);
+                        double calc_exposure = (margin/256.0 * exposure_change_rate + 1)*exposure;
+                        exposure_target = std::min(max_exposure, (int)calc_exposure );
                     }
                     else if(gain  <  max_gain)
                     {
-                        gain_target = std::min(max_gain, gain + margin);
+                        gain_target = std::min(max_gain, gain + 2*margin);
                     }
                 }else if (meanLux > target_mean + dead_region) // image too bight
                 {
@@ -374,30 +381,32 @@ int main(int argc, char * argv[]) try
                     // Consider Gain first
                     if (gain > 160 /*good default*/)
                     {
-                        gain_target= std::max(160, gain - margin);
+                        gain_target= std::max(160, gain - 2*margin);
                     }
                     else if(exposure > 8000 /*good default*/)
                     {
-                        exposure_target = std::max(8000, exposure - 50*margin);
+                        double calc_exposure = (-margin/256.0 * exposure_change_rate + 1)*exposure;
+                        exposure_target = std::max(8000, (int)calc_exposure );
                     }
                     else if (gain > min_gain)
                     {
-                        gain_target = std::max(min_gain, gain - margin);
+                        gain_target = std::max(min_gain, gain - 2*margin);
                     }
                     else if (exposure > min_exposure)
                     {
-                        exposure_target = std::max(min_exposure, exposure - 50*margin);
+                        double calc_exposure = (-margin/256.0 * exposure_change_rate + 1)*exposure;
+                        exposure_target = std::max(min_exposure, (int)calc_exposure);
                         
                     }
                 }
 
                 // detect big jump
-                const double exposure_jump = 0.3;
-                const double gain_jump = 0.3;
+                const double exposure_jump = 0.5;
+                const double gain_jump = 0.5;
                 if ( std::abs(exposure_target - exposure)/ (double)exposure > exposure_jump 
                         || std::abs(gain_target - gain) / (double)gain >  gain_jump )
                 {
-                    const double speed = 0.3; // 0 to 1
+                    const double speed = 0.5; // 0 to 1
                     settingFilter.expo = exposure_target*speed + settingFilter.expo*(1-speed);
                     settingFilter.gain = gain_target*speed + settingFilter.gain*(1-speed);
 

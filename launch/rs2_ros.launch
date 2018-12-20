@@ -10,6 +10,11 @@
         <param name="laser_power" value="0" /> <!-- from 0 to 360 -->
 
         <param name="visualisation_on" value="false" />
+
+        <param name="exposure_change_rate" value="1.5" />
+        <param name="target_mean" value="110" />
+        <param name="dead_region" value="5" />
+
     </node>
     <!-- respawn="true" respawn_delay="2"  -->
 </launch>
