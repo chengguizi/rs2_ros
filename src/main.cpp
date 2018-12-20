@@ -157,6 +157,26 @@ void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::Camer
 //     exit(signum);
 // }
 
+void scaleFrames(cv::Mat &leftImg, cv::Mat &rightImg, int min, int max)
+{
+    static double a=1, b=0;
+    const double update_rate = 0.1;
+    const double max_alpha = 2;
+
+    // calculate current frame alpha and beta
+    double a_now, b_now;
+    ROS_ASSERT(max >= min);
+    a_now = std::min( max_alpha*2, 256.0 / (double)(max-min+1));
+    a = std::min (update_rate*a_now + (1 - update_rate)*a, max_alpha);
+
+    b_now = -a*min;
+    b = update_rate*b_now + (1 - update_rate)*b;
+
+
+    leftImg.convertTo(leftImg,-1,a,b);
+    rightImg.convertTo(rightImg,-1,a,b);
+}
+
 int main(int argc, char * argv[]) try
 {
 
@@ -171,6 +191,7 @@ int main(int argc, char * argv[]) try
     int exposure,gain,laser_power;
     bool auto_exposure;
     bool _visualisation_on;
+    bool brighten_dark_image;
 
     double exposure_change_rate;
     int target_mean;
@@ -189,6 +210,8 @@ int main(int argc, char * argv[]) try
     local_nh.param("dead_region",dead_region,5);
     
 
+    
+    local_nh.param("brighten_dark_image",brighten_dark_image,false);
     local_nh.param("visualisation_on",_visualisation_on,false);
 
 
@@ -342,9 +365,20 @@ int main(int argc, char * argv[]) try
             last_stamp = sensor_timestamp;
             //////////////////////////////////
 
-            pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
+            
 
             exposureCtl.calcHistogram(irframe.left,exposure,gain);
+
+            if (brighten_dark_image)
+            {
+                int min, max;
+                exposureCtl.getIntensityRange(min,max);
+                // ROS_INFO_STREAM_THROTTLE(1,"min=" << min  << ",max=" << max);
+                scaleFrames(irframe.left, irframe.right, min, max);
+            }
+
+            pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
+
             int meanLux = exposureCtl.EstimateMeanLuminance();
             // if (_visualisation_on)
                 // exposureCtl.showHistogram(exposure, gain);

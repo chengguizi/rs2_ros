@@ -14,6 +14,7 @@ public:
     void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256, bool normalisedtoOne = true);
     int EstimateMeanLuminance();
     const cv::Mat getHist(){return hist;}
+    void getIntensityRange(int &min, int &max){min = intensity_min; max = intensity_max;}
     void showHistogram(int exposure_usec = 0, int gain = 0);
 
 
@@ -21,6 +22,8 @@ private:
     const int p_width = 16;
 
     int img_width, img_height;
+
+    int intensity_min, intensity_max;
 
     cv::Mat hist;
     double bkBrightness;

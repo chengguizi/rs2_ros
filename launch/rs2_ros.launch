@@ -9,6 +9,8 @@
         <param name="gain" value="200" /> <!-- value from 16 - 248 -->
         <param name="laser_power" value="0" /> <!-- from 0 to 360 -->
 
+        <param name="brighten_dark_image" value="true" />
+
         <param name="visualisation_on" value="false" />
 
         <param name="exposure_change_rate" value="1.5" />

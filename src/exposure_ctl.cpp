@@ -24,6 +24,7 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
 
     histPeaks = cv::Mat(hist.size(),CV_32FC1);
 
+    
     for (int i = 0 ; i < histSize ; i++)
     {
         float sum = 0;
@@ -35,6 +36,36 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
     }
     // SHOULD NOT NORMALISE PEAKS
     //normalize(histPeaks, histPeaks,1,0,cv::NORM_L1);
+
+    // find min and max intensity
+    intensity_min = 255;
+    intensity_max = 0;
+    float sum;
+
+    sum = 0;
+    for  (int i = 0; i < histSize ; i++)
+    {
+        sum += hist.at<float>(i);
+        if ( sum > 0.01)
+        {
+            intensity_min = i;
+            break;
+        }
+    }
+
+    sum = 0;
+    for  (int i = histSize - 1; i >=0 ; i--)
+    {
+        sum += hist.at<float>(i);
+        if ( sum > 0.01)
+        {
+            intensity_max = i;
+            break;
+        }
+    }
+
+    assert(intensity_max >= intensity_min);
+                
 
     img_width = img.cols;
     img_height = img.rows;
