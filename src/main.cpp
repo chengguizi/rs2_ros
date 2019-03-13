@@ -161,7 +161,7 @@ void scaleFrames(cv::Mat &leftImg, cv::Mat &rightImg, int min, int max)
 {
     static double a=1, b=0;
     const double update_rate = 0.1;
-    const double max_alpha = 2;
+    const double max_alpha = 5;
 
     // calculate current frame alpha and beta
     double a_now, b_now;
@@ -197,6 +197,9 @@ int main(int argc, char * argv[]) try
     int target_mean;
     int dead_region;
 
+    // Exposure control param
+    double a_min, a_max, c;
+
     local_nh.param("width", w,1280);
     local_nh.param("height",h,720);
     local_nh.param("frame_rate",hz,30);
@@ -208,7 +211,10 @@ int main(int argc, char * argv[]) try
     local_nh.param("exposure_change_rate",exposure_change_rate,1.0);
     local_nh.param("target_mean",target_mean,110);
     local_nh.param("dead_region",dead_region,5);
-    
+
+    local_nh.param("a_min",a_min,0.15);
+    local_nh.param("a_max",a_max,0.85);
+    local_nh.param("c",c,0.5);
 
     
     local_nh.param("brighten_dark_image",brighten_dark_image,false);
@@ -283,7 +289,7 @@ int main(int argc, char * argv[]) try
     getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);
 
 
-    ExposureControl exposureCtl;
+    ExposureControl exposureCtl(0.15,0.8,0.6);
     const auto exposure_range =  sys->getOptionRange(RS2_OPTION_EXPOSURE);
     const auto gain_range = sys->getOptionRange(RS2_OPTION_GAIN);
     int max_exposure; // ~100Hz

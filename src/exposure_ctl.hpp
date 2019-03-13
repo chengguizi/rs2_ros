@@ -11,6 +11,11 @@
 class ExposureControl{
 
 public:
+
+    ExposureControl(double a_min, double a_max, double c) : a_min_(a_min), a_max_(a_max), c_(c){
+        std::cout  << "Init Exposurecontrol with a_min = " << a_min_ << ", a_max = " << a_max << ", c = " << c_ << std::endl;
+    };
+
     void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256, bool normalisedtoOne = true);
     int EstimateMeanLuminance();
     const cv::Mat getHist(){return hist;}
@@ -38,6 +43,8 @@ private:
         float value;
     };
     Peak peak1, peak2; // peak1 darker than peak2
+
+    double a_min_, a_max_, c_; // parameter
 
     struct Curve{
         double a;

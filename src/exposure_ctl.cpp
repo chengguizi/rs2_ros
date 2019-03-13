@@ -81,13 +81,13 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
     // std::cout << "bkBrightness: " << bkBrightness << std::endl;
     assert (bkBrightness>=0 && bkBrightness<=1);
 
-    const double c = 0.6;
-    const double a_min = 0.15;
-    const double a_max = 0.8;
-    W_dark.c = W_bright.c = c; // arbituary constant
+    // const double c = 0.6;
+    // const double a_min = 0.15;
+    // const double a_max = 0.8;
+    W_dark.c = W_bright.c = c_; // arbituary constant
 
-    W_dark.a = a_max - bkBrightness*(a_max-a_min);
-    W_bright.a = a_min + bkBrightness*(a_max-a_min);
+    W_dark.a = a_max_ - bkBrightness*(a_max_- a_min_);
+    W_bright.a = a_min_ + bkBrightness*(a_max_- a_min_);
 
     W_dark.b = (1 - W_dark.a) / std::pow(1 - W_dark.c, 2.0);
     W_bright.b = (1 - W_bright.a) / std::pow(1 - W_bright.c, 2.0);

@@ -17,6 +17,10 @@
         <param name="target_mean" value="110" />
         <param name="dead_region" value="5" />
 
+        <param name="a_min" value="0.15" />
+        <param name="a_max" value="0.9" />
+        <param name="c" value="0.4" />
+
     </node>
     <!-- respawn="true" respawn_delay="2"  -->
 </launch>
