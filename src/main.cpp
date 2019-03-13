@@ -45,7 +45,7 @@ std::ostringstream streamout;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
 void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, int w, int h, \
-    double tleft, double tright, uint64_t seqleft, uint64_t seqright) // irleft and irright are in the heap, must be deleted after use
+    double tleft, double tright, uint64_t seqleft, uint64_t seqright, bool use_y16) // irleft and irright are in the heap, must be deleted after use
 {
     // std::cout << "Frame: " << seqleft << std::endl;
     if ( irframe.inProcess.try_lock())
@@ -79,8 +79,24 @@ void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, int w,
             //ROS_INFO_STREAM("ImageCallback(): deleted " << seqleft);
         }
         
-        irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);    
-        irframe.right = cv::Mat(cv::Size(w, h), CV_8UC1, irright, cv::Mat::AUTO_STEP);
+        if (use_y16) // 1 pixel == 2 bytes
+        {
+            irframe.left = cv::Mat(cv::Size(w, h), CV_16UC1, irleft, cv::Mat::AUTO_STEP);    
+            irframe.right = cv::Mat(cv::Size(w, h), CV_16UC1, irright, cv::Mat::AUTO_STEP);
+            
+        }else{
+            irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);    
+            irframe.right = cv::Mat(cv::Size(w, h), CV_8UC1, irright, cv::Mat::AUTO_STEP);
+        }
+
+
+        ///// DEBUG //////
+        double min, max;
+        cv::minMaxLoc(irframe.left, &min, &max);
+
+        ROS_INFO_STREAM_THROTTLE(1,"min = " << min << ", max = " << max);
+        //////////////////
+        
         irframe.t = t_sensor;
 
         irframe.inProcess.unlock();
@@ -189,6 +205,7 @@ int main(int argc, char * argv[]) try
 
     int w,h,hz;
     int exposure,gain,laser_power;
+    bool use_y16;
     bool auto_exposure;
     bool _visualisation_on;
     bool brighten_dark_image;
@@ -207,6 +224,7 @@ int main(int argc, char * argv[]) try
     local_nh.param("auto_exposure",auto_exposure,false);
     local_nh.param("gain",gain,40);
     local_nh.param("laser_power",laser_power,150);
+    local_nh.param("use_y16",use_y16,false);
 
     local_nh.param("exposure_change_rate",exposure_change_rate,1.0);
     local_nh.param("target_mean",target_mean,110);
@@ -222,7 +240,7 @@ int main(int argc, char * argv[]) try
 
 
 
-    IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
+    IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power, use_y16);
 
     // while (ros::ok()){
     //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -386,8 +404,9 @@ int main(int argc, char * argv[]) try
             pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
 
             int meanLux = exposureCtl.EstimateMeanLuminance();
-            // if (_visualisation_on)
-                // exposureCtl.showHistogram(exposure, gain);
+            
+            if (_visualisation_on)
+                exposureCtl.showHistogram(exposure, gain);
 
             // publish statistics
             rs2_ros::CameraStats stats_msg;

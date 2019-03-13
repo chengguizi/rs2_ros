@@ -10,6 +10,8 @@
 //#include <stdio.h> // printf
 //#include <stdlib.h> // linux
 
+#include <cassert>
+
 #include "rs2_interface/irstereo_interface.hpp"
 
 
@@ -46,7 +48,7 @@ std::string get_sensor_name(const rs2::sensor& sensor)
 // class member functions
 ////////////////////////////////
 
-IrStereoDriver::IrStereoDriver(std::string dev_name_str, int laser_power) : _dev_name_str(dev_name_str), _laser_power(laser_power), _isStreaming(false)
+IrStereoDriver::IrStereoDriver(std::string dev_name_str, int laser_power, bool use_y16) : _dev_name_str(dev_name_str), _laser_power(laser_power), _use_y16(use_y16), _isStreaming(false)
 {
     // High CPU usage issue https://github.com/IntelRealSense/librealsense/issues/2037
     _pipe = new rs2::pipeline();
@@ -157,9 +159,18 @@ void IrStereoDriver::startPipe(int width, int height, int hz)
 {
     //Create a configuration for configuring the pipeline with a non default profile
     rs2::config cfg;
-    cfg.enable_stream(RS2_STREAM_INFRARED,1, width, height, RS2_FORMAT_Y8, hz); // left
-    cfg.enable_stream(RS2_STREAM_INFRARED,2, width, height, RS2_FORMAT_Y8, hz); // right
 
+    // format = RS2_FORMAT_Y8 or RS2_FORMAT_Y16
+    if (_use_y16)
+    {
+        std::cout << "Setting to Y16 format..." << std::endl;
+        cfg.enable_stream(RS2_STREAM_INFRARED,1, width, height, RS2_FORMAT_Y16, hz); // left
+        cfg.enable_stream(RS2_STREAM_INFRARED,2, width, height, RS2_FORMAT_Y16, hz); // right
+    }else{
+        cfg.enable_stream(RS2_STREAM_INFRARED,1, width, height, RS2_FORMAT_Y8, hz); // left
+        cfg.enable_stream(RS2_STREAM_INFRARED,2, width, height, RS2_FORMAT_Y8, hz); // right
+    }
+    
     // Start streaming with default recommended configuration
     rs2::pipeline_profile selection = _pipe->start(cfg);
     _profile = new auto(selection);
@@ -168,7 +179,16 @@ void IrStereoDriver::startPipe(int width, int height, int hz)
     auto stream_profile_right = _profile->get_stream(RS2_STREAM_INFRARED,2);
     auto video_profile_left = stream_profile_left.as<rs2::video_stream_profile>();
     
-    _intrinsics =  video_profile_left.get_intrinsics();
+    try{
+        _intrinsics =  video_profile_left.get_intrinsics();
+    }
+    catch(const rs2::error& e){
+        std::cerr << "Fail in reading Camera Intrinsics" << std::endl;
+
+        _intrinsics.width = width;
+        _intrinsics.height = height;
+    }
+    
     auto _hz = video_profile_left.fps();
 
     std::cout << std::endl << "Realsense Hardware Intrinsics" << std::endl
@@ -271,8 +291,10 @@ void IrStereoDriver::process()
 
         int num_frames = dataset.size();
         if (num_frames != 2)
+        {
             std::cerr << "frameset contains " << num_frames << "frames, should be 2."<< std::endl;
-
+            continue;
+        }
 
         rs2::video_frame frame_left = dataset.get_infrared_frame(1);
         double time_left = frame_left.get_timestamp()/1000;
@@ -309,17 +331,18 @@ void IrStereoDriver::process()
         // uint64_t delay_uvc_to_frontend2 = meta_toa2 - meta_backendtime2;
         // std::cout << delay_uvc_to_frontend << "  " << delay_uvc_to_frontend2 << std::endl;
 
+        const int pixel_byte = frame_left.get_bytes_per_pixel();
+        
+        void* irleft = new char[w*h*pixel_byte];
+        memcpy(irleft,frame_left.get_data(),w*h*pixel_byte);
 
-        void* irleft = new char[w*h];
-        memcpy(irleft,frame_left.get_data(),w*h);
-
-        void* irright = new char[w*h];
-        memcpy(irright,frame_right.get_data(),w*h);
+        void* irright = new char[w*h*pixel_byte];
+        memcpy(irright,frame_right.get_data(),w*h*pixel_byte);
 
 
         for (callbackType cb : _cblist)
         {
-            (cb)(sensor_time, irleft, irright, w, h, time_left, time_right, seq_left, seq_right);
+            (cb)(sensor_time, irleft, irright, w, h, time_left, time_right, seq_left, seq_right, _use_y16);
             // time_left and time_right is time since boot of the realsense hardware
         }
 

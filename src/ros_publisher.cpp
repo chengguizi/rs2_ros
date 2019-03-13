@@ -55,6 +55,15 @@ void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv,
     sensor_msgs::CameraInfoConstPtr cameraInfoPtr_left = boost::make_shared<sensor_msgs::CameraInfo>(cameraInfo_left);
     sensor_msgs::CameraInfoConstPtr cameraInfoPtr_right = boost::make_shared<sensor_msgs::CameraInfo>(cameraInfo_right);
 
+    // convert Y16 to Y8 if necessary
+
+    if (imageLeft_cv.depth() == CV_16UC1)
+    {
+        ROS_WARN_ONCE("Converting Y16 to Y8 before publishing...");
+
+        imageLeft_cv.convertTo(imageLeft_cv, CV_8UC1, 0.00390625);
+    }
+
     // publish left image
     cv_bridge::CvImage imageLeft_bridge = cv_bridge::CvImage(header, \
                 sensor_msgs::image_encodings::MONO8, imageLeft_cv);

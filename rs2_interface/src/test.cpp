@@ -27,7 +27,7 @@ struct irframe_t{
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
 void stereoImageCallback(unsigned long  dev_time, void* irleft, void* irright, const int w, const int h, \
-    double tleft, double tright, unsigned long  seqleft, unsigned long seqright) // irleft and irright are in the heap, must be deleted after use
+    double tleft, double tright, unsigned long  seqleft, unsigned long seqright, bool use_y16) // irleft and irright are in the heap, must be deleted after use
 {
     if ( irframe.inProcess.try_lock())
     {

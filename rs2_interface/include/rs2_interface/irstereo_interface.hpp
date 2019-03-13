@@ -18,9 +18,9 @@
 class IrStereoDriver {
 
 public:
-    typedef std::function<void(uint64_t, void*,void*, int, int, double, double, uint64_t, uint64_t)> callbackType; 
+    typedef std::function<void(uint64_t, void*,void*, int, int, double, double, uint64_t, uint64_t, bool)> callbackType; 
                         // time since epoch, left & right image data, width, height, hardware time left & right, hardware sequence left & right
-    IrStereoDriver(std::string dev_name_str = "RealSense D415", int laser_power = 150);
+    IrStereoDriver(std::string dev_name_str = "RealSense D415", int laser_power = 150, bool use_y16 = false);
     ~IrStereoDriver();
     void setOption(rs2_option option, float value);
     float getOption(rs2_option option);
@@ -45,6 +45,7 @@ private:
     rs2_extrinsics _extrinsics_left_to_right;
     float _baseline;
     int _laser_power; // range 0 - 360, step 30. default 150
+    bool _use_y16;
     int _w,_h;
 
     bool _isStreaming;

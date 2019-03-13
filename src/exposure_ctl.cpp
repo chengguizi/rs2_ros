@@ -13,11 +13,14 @@
 #include <ros/ros.h>
 
 
-void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize, bool normalisedtoOne)
+void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize, float maxRange, bool normalisedtoOne)
 {
     this->histSize = histSize;
+
+    float range[] = {0.0f , maxRange};
+    const float* histRange = {range};
     cv::calcHist(&img,1 /*num of images*/, 0 /*channels*/, cv::Mat() /*mask*/, 
-        hist, 1 /*output dimensions*/,  &histSize/* histogram size*/, 0 /*ranges*/ );
+        hist, 1 /*output dimensions*/,  &histSize/* histogram size*/,  &histRange /*ranges*/ );
 
     normalize(hist, hist,1,0,cv::NORM_L1); // normalised histogram
     // assert( fabs(cv::sum(hist)[0] - 1) < 1e-3 );

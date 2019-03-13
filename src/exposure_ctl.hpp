@@ -16,7 +16,7 @@ public:
         std::cout  << "Init Exposurecontrol with a_min = " << a_min_ << ", a_max = " << a_max << ", c = " << c_ << std::endl;
     };
 
-    void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256, bool normalisedtoOne = true);
+    void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256, float maxRange = 255, bool normalisedtoOne = true);
     int EstimateMeanLuminance();
     const cv::Mat getHist(){return hist;}
     void getIntensityRange(int &min, int &max){min = intensity_min; max = intensity_max;}
