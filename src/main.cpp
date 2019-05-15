@@ -190,6 +190,7 @@ int main(int argc, char * argv[]) try
     int w,h,hz;
     int exposure,gain,laser_power;
     bool auto_exposure;
+    int mean_intensity_setpoint;
     bool _visualisation_on;
     bool brighten_dark_image;
 
@@ -205,6 +206,7 @@ int main(int argc, char * argv[]) try
     local_nh.param("frame_rate",hz,30);
     local_nh.param("exposure",exposure,20000);
     local_nh.param("auto_exposure",auto_exposure,false);
+    local_nh.param("mean_intensity_setpoint",mean_intensity_setpoint,1536);
     local_nh.param("gain",gain,40);
     local_nh.param("laser_power",laser_power,150);
 
@@ -222,7 +224,7 @@ int main(int argc, char * argv[]) try
 
 
 
-    IrStereoDriver* sys = new IrStereoDriver("RealSense D415",laser_power);
+    IrStereoDriver* sys = new IrStereoDriver("RealSense D4",laser_power);
 
     // while (ros::ok()){
     //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -234,10 +236,11 @@ int main(int argc, char * argv[]) try
 
     // for more options, please refer rs_option.h
     if (auto_exposure)
-        sys->setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
+        sys->enableAE( static_cast<uint32_t>(mean_intensity_setpoint) );
+        
     else
     {
-        sys->setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);
+        sys->disableAE();
         sys->setOption(RS2_OPTION_EXPOSURE,exposure); // in usec
         sys->setOption(RS2_OPTION_GAIN,gain);
 
@@ -375,7 +378,7 @@ int main(int argc, char * argv[]) try
 
             exposureCtl.calcHistogram(irframe.left,exposure,gain);
 
-            if (brighten_dark_image)
+            if (!auto_exposure && brighten_dark_image)
             {
                 int min, max;
                 exposureCtl.getIntensityRange(min,max);
@@ -397,7 +400,7 @@ int main(int argc, char * argv[]) try
             stats_msg.meanLux = meanLux;
             _camstats_pub.publish(stats_msg);
 
-            if (irframe.seq%2) // only process half of the frames, give some delays
+            if (!auto_exposure && irframe.seq%2) // only process half of the frames, give some delays
             {
                 int exposure_target = exposure;
                 int gain_target = gain;

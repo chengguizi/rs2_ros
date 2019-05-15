@@ -4,6 +4,8 @@
 // Class of the physical sensor for callback operations
 
 #include <librealsense2/rs.hpp>
+#include <librealsense2/h/rs_advanced_mode_command.h> // for controlling the AE setpoint
+#include <librealsense2/rs_advanced_mode.hpp>
 #include <iostream>
 #include <cstring>
 #include <string>
@@ -335,6 +337,17 @@ void IrStereoDriver::setOption(rs2_option option, float value)
 float IrStereoDriver::getOption(rs2_option option)
 {
     return _stereo->get_option(option); 
+}
+
+void IrStereoDriver::enableAE(uint32_t meanIntensitySetPoint)
+{
+    setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
+    auto adv_mode = rs400::advanced_mode( (*_dev) );
+
+    STAEControl ae_ctl_t;
+    ae_ctl_t.meanIntensitySetPoint = meanIntensitySetPoint;
+    adv_mode.set_ae_control(ae_ctl_t);
+    std::cout << "AE Setpoint set to " << meanIntensitySetPoint << std::endl;
 }
 
 rs2::option_range IrStereoDriver::getOptionRange(rs2_option option)

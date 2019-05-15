@@ -24,6 +24,9 @@ public:
     ~IrStereoDriver();
     void setOption(rs2_option option, float value);
     float getOption(rs2_option option);
+
+    void enableAE(uint32_t meanIntensitySetPoint);
+    void disableAE(){setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);};
     rs2::option_range getOptionRange(rs2_option option);
     void startPipe(int width, int height, int hz);
     rs2_intrinsics get_intrinsics() const; // only call this after pipe started
