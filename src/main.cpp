@@ -189,7 +189,7 @@ int main(int argc, char * argv[]) try
 
     int w,h,hz;
     int exposure,gain,laser_power;
-    bool auto_exposure;
+    bool auto_exposure_internal,auto_exposure_custom;
     int mean_intensity_setpoint;
     bool _visualisation_on;
     bool brighten_dark_image;
@@ -205,7 +205,8 @@ int main(int argc, char * argv[]) try
     local_nh.param("height",h,720);
     local_nh.param("frame_rate",hz,30);
     local_nh.param("exposure",exposure,20000);
-    local_nh.param("auto_exposure",auto_exposure,false);
+    local_nh.param("auto_exposure_internal",auto_exposure_internal,false);
+    local_nh.param("auto_exposure_custom",auto_exposure_custom,false);
     local_nh.param("mean_intensity_setpoint",mean_intensity_setpoint,1536);
     local_nh.param("gain",gain,40);
     local_nh.param("laser_power",laser_power,150);
@@ -235,7 +236,7 @@ int main(int argc, char * argv[]) try
         sys->setOption(RS2_OPTION_EMITTER_ENABLED,0);
 
     // for more options, please refer rs_option.h
-    if (auto_exposure)
+    if (auto_exposure_internal)
         sys->enableAE( static_cast<uint32_t>(mean_intensity_setpoint) );
         
     else
@@ -248,7 +249,7 @@ int main(int argc, char * argv[]) try
         ROS_ASSERT(sys->getOption(RS2_OPTION_GAIN) ==  gain);
     }
 
-    ROS_ASSERT (sys->getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) == auto_exposure);
+    ROS_ASSERT (sys->getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) == auto_exposure_internal);
 
     ROS_INFO_STREAM("Realsense: Initial shutter speed= 1/" << 1/(exposure*1e-6) << ", gain= " << gain );
 
@@ -378,7 +379,7 @@ int main(int argc, char * argv[]) try
 
             exposureCtl.calcHistogram(irframe.left,exposure,gain);
 
-            if (!auto_exposure && brighten_dark_image)
+            if (!auto_exposure_custom && auto_exposure_custom && brighten_dark_image)
             {
                 int min, max;
                 exposureCtl.getIntensityRange(min,max);
@@ -400,7 +401,7 @@ int main(int argc, char * argv[]) try
             stats_msg.meanLux = meanLux;
             _camstats_pub.publish(stats_msg);
 
-            if (!auto_exposure && irframe.seq%2) // only process half of the frames, give some delays
+            if (!auto_exposure_internal && auto_exposure_custom && irframe.seq%2) // only process half of the frames, give some delays
             {
                 int exposure_target = exposure;
                 int gain_target = gain;
