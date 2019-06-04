@@ -253,5 +253,5 @@ void ExposureControl::showHistogram(int exposure_usec, int gain)
     }
         
     imshow("histogram Peaks", histImage);
-    cvWaitKey(1);
+    cv::waitKey(1);
 }
