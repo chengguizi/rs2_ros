@@ -15,7 +15,7 @@
 //             return "Unknown Sensor";
 // }
 
-int main(int argc, char * argv[]) try
+int main() try
 {
 
     // Declare RealSense pipeline, encapsulating the actual device and sensors
@@ -23,8 +23,8 @@ int main(int argc, char * argv[]) try
 
     //Create a configuration for configuring the pipeline with a non default profile
     rs2::config cfg;
-    cfg.enable_stream(RS2_STREAM_INFRARED,1, 640, 480, RS2_FORMAT_Y8, 30);
-    cfg.enable_stream(RS2_STREAM_INFRARED,2, 640, 480, RS2_FORMAT_Y8, 30);
+    cfg.enable_stream(RS2_STREAM_FISHEYE ,1, RS2_FORMAT_Y8);
+    cfg.enable_stream(RS2_STREAM_FISHEYE ,2, RS2_FORMAT_Y8);
 
     // Start streaming with default recommended configuration
     rs2::pipeline_profile selection = pipe.start(cfg);
@@ -40,9 +40,11 @@ int main(int argc, char * argv[]) try
     //     std::cout << "  " << index++ << " : " << get_sensor_name(sensor) << std::endl;
     // }
 
-    auto depth_sensor = selected_device.first<rs2::depth_sensor>(); // select the IR stereo sensor
-    depth_sensor.set_option(RS2_OPTION_EXPOSURE,15000); // in usec
-    depth_sensor.set_option(RS2_OPTION_GAIN,30);
+
+    // rs2::depth_sensor rs2::pose_sensor
+    auto depth_sensor = selected_device.first<rs2::pose_sensor>(); // select the IR stereo sensor
+    // depth_sensor.set_option(RS2_OPTION_EXPOSURE,15000); // in usec
+    // depth_sensor.set_option(RS2_OPTION_GAIN,30);
 
     using namespace cv;
     const auto window_name_l = "Display Image Left";
@@ -54,8 +56,10 @@ int main(int argc, char * argv[]) try
     {
         rs2::frameset data = pipe.wait_for_frames(); // Wait for next set of frames from the camera
 
-        rs2::video_frame irleft = data.get_infrared_frame(1);
-        rs2::video_frame irright = data.get_infrared_frame(2);
+        rs2::video_frame irleft = data.get_fisheye_frame(1);
+        rs2::video_frame irright = data.get_fisheye_frame(2);
+        // rs2::video_frame irleft = data.get_infrared_frame(1);
+        // rs2::video_frame irright = data.get_infrared_frame(2);
         // Query frame size (width and height)
         const int w = irleft.get_width();
         const int h = irleft.get_height();

@@ -12,7 +12,7 @@
 
 #include <mutex>
 
-#include "rs2_interface/irstereo_interface.hpp"
+#include "rs2_interface/stereo_interface.hpp"
 
 #include <opencv2/opencv.hpp>   // Include OpenCV API
 
@@ -26,21 +26,20 @@ struct irframe_t{
 }irframe;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
-void stereoImageCallback(unsigned long  dev_time, void* irleft, void* irright, const int w, const int h, \
-    double tleft, double tright, unsigned long  seqleft, unsigned long seqright) // irleft and irright are in the heap, must be deleted after use
+void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irright are in the heap, must be deleted after use
 {
     if ( irframe.inProcess.try_lock())
     {
-        if (tleft != tright)
+        if (data.time_left != data.time_right)
             std::cerr << "ImageCallback(): stereo time sync inconsistent!" << std::endl;
-        irframe.t = tleft;
-        if (seqleft != seqright)
+        irframe.t = data.time_left;
+        if (data.seq_left != data.seq_right)
             std::cerr << "ImageCallback(): stereo frame sequence sync inconsistent!" << std::endl;
-        irframe.seq = seqleft;
+        irframe.seq = data.seq_left;
 
-        if (seqleft == 1)
+        if (data.seq_left == 1)
         {
-            irframe.t_base = dev_time;
+            irframe.t_base = data.sensor_time;
         }
         else
         {
@@ -48,9 +47,9 @@ void stereoImageCallback(unsigned long  dev_time, void* irleft, void* irright, c
            delete[] irframe.right.data;
         }
         
-        irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);    
-        irframe.right = cv::Mat(cv::Size(w, h), CV_8UC1, irright, cv::Mat::AUTO_STEP);
-        irframe.t = dev_time - irframe.t_base;
+        irframe.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
+        irframe.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
+        irframe.t = data.sensor_time - irframe.t_base;
 
         std::cout << irframe.t << std::endl;
         irframe.inProcess.unlock();
@@ -63,11 +62,11 @@ void stereoImageCallback(unsigned long  dev_time, void* irleft, void* irright, c
 
 int main() try
 {
-    IrStereoDriver* sys = new IrStereoDriver("RealSense D415");
+    StereoDriver* sys = new StereoDriver("RealSense D4");
 
     // for more options, please refer rs_option.h
-    sys->setOption(RS2_OPTION_EXPOSURE,20000); // in usec
-    sys->setOption(RS2_OPTION_GAIN,40);
+    sys->setOption(RS2_OPTION_EXPOSURE,10000); // in usec
+    sys->setOption(RS2_OPTION_GAIN,16);
 
     const auto window_name_l = "Display Image Left";
     const auto window_name_r = "Display Image Right";
@@ -77,7 +76,7 @@ int main() try
     sys->registerCallback(stereoImageCallback);
 
 
-    sys->startPipe(1280, 720, 30);
+    sys->startStereoPipe(1280, 720, 30);
 
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)
@@ -96,7 +95,7 @@ int main() try
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
-    sys->stopPipe();
+    sys->stopStereoPipe();
 
     std::cout << "main() exits" << std::endl;
 

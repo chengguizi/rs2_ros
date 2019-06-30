@@ -1,7 +1,7 @@
-// ROS Node for Realsense D415 Streams
-// Cheng Huimin, June 2018
+// ROS Node for Realsense T265 Streams
+// Cheng Huimin, June 2019
 //
-// The dedicated Realsense interface to publish ROS topics, from the infrared stereo streams
+// The dedicated Realsense interface to publish ROS topics, from the fisheye stereo streams
 
 #include <iostream>
 #include <iomanip>
@@ -44,30 +44,31 @@ struct irframe_t{
 std::ostringstream streamout;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
-void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irright are in the heap, must be deleted after use
+void stereoImageCallback(uint64_t t_sensor , void* irleft, void* irright, int w, int h, \
+    double tleft, double tright, uint64_t seqleft, uint64_t seqright) // irleft and irright are in the heap, must be deleted after use
 {
     // std::cout << "Frame: " << seqleft << std::endl;
     if ( irframe.inProcess.try_lock())
     {
 
-        if (data.time_left != data.time_right){
+        if (tleft != tright){
             ROS_WARN_STREAM( "ImageCallback(): stereo time sync inconsistent!" );
             return;
         }
             
         
-        if (data.seq_left != data.seq_right){
+        if (seqleft != seqright){
             ROS_WARN_STREAM( "ImageCallback(): stereo frame sequence sync inconsistent!" );
             return;
         }
             
-        irframe.seq = data.seq_left;
+        irframe.seq = seqleft;
         // irframe.t = tleft;
         irframe.t_callback = ros::Time::now().toNSec(); //std::chrono::system_clock::now().time_since_epoch().count();
 
-        if (data.seq_left == 0)
+        if (seqleft == 0)
         {
-            irframe.t_base = data.sensor_time;
+            irframe.t_base = t_sensor;
             ROS_WARN("RealSense: First frame successfully captured!");
         }
         else
@@ -78,9 +79,9 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
             //ROS_INFO_STREAM("ImageCallback(): deleted " << seqleft);
         }
         
-        irframe.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
-        irframe.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        irframe.t = data.sensor_time;
+        irframe.left = cv::Mat(cv::Size(w, h), CV_8UC1, irleft, cv::Mat::AUTO_STEP);    
+        irframe.right = cv::Mat(cv::Size(w, h), CV_8UC1, irright, cv::Mat::AUTO_STEP);
+        irframe.t = t_sensor;
 
         irframe.inProcess.unlock();
 
@@ -88,10 +89,10 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
 
     }else
     {
-        ROS_WARN_STREAM( "Missed Frame(" << data.seq_left << ")" );
+        ROS_WARN_STREAM( "Missed Frame(" << seqleft << ")" );
     }
 
-    streamout << (irframe.t_callback - data.sensor_time)/1.0e6 << " " << std::fixed <<data.sensor_time/1.0e6 << std::endl;
+    streamout << (irframe.t_callback - t_sensor)/1.0e6 << " " << std::fixed <<t_sensor/1.0e6 << std::endl;
 }
 
 void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::CameraInfo& left, sensor_msgs::CameraInfo& right)
@@ -147,15 +148,6 @@ void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::Camer
 
 }
 
-
-// void signalHandler(int signum)
-// {
-//     std::cout << strsignal(signum) << " Signal is received! Terminating RealSense Node..." << std::endl;
-//     ros::shutdown();
-//     delete sys;
-//     exit(signum);
-// }
-
 void scaleFrames(cv::Mat &leftImg, cv::Mat &rightImg, int min, int max)
 {
     static double a=1, b=0;
@@ -180,7 +172,7 @@ int main(int argc, char * argv[]) try
 {
 
     // ros initialisation
-    ros::init(argc, argv, "rs2_ros");
+    ros::init(argc, argv, "rs2_ros_t265");
     ros::NodeHandle nh;
     ros::NodeHandle local_nh("~");
 
@@ -200,8 +192,8 @@ int main(int argc, char * argv[]) try
     // Exposure control param
     double a_min, a_max, c;
 
-    local_nh.param("width", w,1280);
-    local_nh.param("height",h,720);
+    local_nh.param("width", w,848);
+    local_nh.param("height",h,800);
     local_nh.param("frame_rate",hz,30);
     local_nh.param("exposure",exposure,20000);
     local_nh.param("auto_exposure_internal",auto_exposure_internal,false);
@@ -286,7 +278,7 @@ int main(int argc, char * argv[]) try
     //signal(SIGINT, signalHandler);
 
     //// Start RealSense Pipe
-    sys->startStereoPipe(w,h,hz);
+    sys->startPipe(w,h,hz);
 
     sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
     getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);

@@ -44,7 +44,7 @@ endif()
 
 
 add_library(rs2_interface STATIC
-  src/irstereo_interface.cpp
+  src/stereo_interface.cpp
 )
 add_library(rs2_interface::rs2_interface ALIAS rs2_interface)
 
@@ -70,13 +70,19 @@ target_link_libraries( rs2_interface
 # ${realsense2_LIBRARIES}
 # )
 
-add_executable(rs2-test src/test.cpp)
 
-target_include_directories(rs2-test PRIVATE ${OpenCV_INCLUDE_DIRS})
 
-target_link_libraries(rs2-test
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+link_libraries(
 ${OpenCV_LIBRARIES}
 rs2_interface::rs2_interface
 )
+
+add_executable(rs2-test-d400 src/test-d400.cpp)
+add_executable(rs2-test-t265 src/test-t265.cpp)
+add_executable(rs2-test-nolib src/test-nolib.cpp)
+
+add_executable(rs2-test-enumerate src/test-enumerate.cpp)
 
 # great examples are here: https://github.com/ttroy50/cmake-examples
