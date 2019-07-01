@@ -73,7 +73,7 @@ public:
     void disableAE(){setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);};
     rs2::option_range getOptionRange(rs2_option option);
     void enablePoseMotionStream();
-    void startStereoPipe(int width, int height, int hz, rs2_stream stream_type = RS2_STREAM_INFRARED, rs2_format stream_format = RS2_FORMAT_Y8);
+    void startStereoPipe(int width, int height, int hz, rs2_format stream_format = RS2_FORMAT_Y8);
     rs2_intrinsics get_intrinsics() const; // only call this after pipe started
     rs2_extrinsics get_extrinsics_left_to_right() const;
     float get_baseline() const;

@@ -307,7 +307,7 @@ int main(int argc, char * argv[]) try
 
     //// Start RealSense Pipe
     sys->enablePoseMotionStream();
-    sys->startStereoPipe(w, h, hz, RS2_STREAM_FISHEYE, RS2_FORMAT_Y8);
+    sys->startStereoPipe(w, h, hz, RS2_FORMAT_Y8);
 
     sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
     getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);

@@ -77,7 +77,7 @@ int main() try
     sys->registerCallback(stereoImageCallback);
 
     sys->enablePoseMotionStream();
-    sys->startStereoPipe(848, 800, 30, RS2_STREAM_FISHEYE, RS2_FORMAT_Y8);
+    sys->startStereoPipe(848, 800, 30, RS2_FORMAT_Y8);
 
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)

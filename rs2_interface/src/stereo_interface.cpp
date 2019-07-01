@@ -14,6 +14,9 @@
 // #include <stdlib.h> // linux
 #include <unistd.h>
 
+#include <algorithm>
+#include <cassert>
+
 #include "rs2_interface/stereo_interface.hpp"
 
 
@@ -172,24 +175,30 @@ void StereoDriver::init()
 
 void StereoDriver::enablePoseMotionStream(){
 
-    auto available_streams = _stereo->get_stream_profiles();
+    std::vector<rs2::sensor> sensors = _dev->query_sensors();
 
-    for (auto& stream : available_streams){
-        switch (stream.stream_type())
-        {
-        case RS2_STREAM_POSE:
-            _cfg.enable_stream(RS2_STREAM_POSE, RS2_FORMAT_6DOF);
-            std::cout << "Enabled Pose Stream" << std::endl;
-            break;
-        case RS2_STREAM_GYRO:
-            _cfg.enable_stream(RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F);
-            std::cout << "Enabled Gyro Stream" << std::endl;
-            break;
-        case RS2_STREAM_ACCEL:
-            _cfg.enable_stream(RS2_STREAM_ACCEL,RS2_FORMAT_MOTION_XYZ32F);
-            std::cout << "Enabled Accel Stream" << std::endl;
-        default:
-            break;
+    for (auto& sensor : sensors){
+        auto available_streams = sensor.get_stream_profiles();
+
+        for (auto& stream : available_streams){
+
+            // std::cout << stream.stream_name() << std::endl;
+            switch (stream.stream_type())
+            {
+            case RS2_STREAM_POSE:
+                _cfg.enable_stream(RS2_STREAM_POSE, RS2_FORMAT_6DOF);
+                std::cout << "Enabled Pose Stream" << std::endl;
+                break;
+            case RS2_STREAM_GYRO:
+                _cfg.enable_stream(RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F);
+                std::cout << "Enabled Gyro Stream" << std::endl;
+                break;
+            case RS2_STREAM_ACCEL:
+                _cfg.enable_stream(RS2_STREAM_ACCEL,RS2_FORMAT_MOTION_XYZ32F);
+                std::cout << "Enabled Accel Stream" << std::endl;
+            default:
+                break;
+            }
         }
     }
     
@@ -234,10 +243,18 @@ void print(const rs2_extrinsics& extrinsics)
     std::cout << ss.str() << std::endl << std::endl;
 }
 
-void StereoDriver::startStereoPipe(int width, int height, int hz, rs2_stream stream_type, rs2_format stream_format)
+void StereoDriver::startStereoPipe(int width, int height, int hz, rs2_format stream_format)
 {
 
     _cfg.enable_device(_dev->get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)); // This is needed for multi cam setup
+
+    auto available_streams = _stereo->get_stream_profiles();
+
+    auto find_result = std::find_if(available_streams.begin(), available_streams.end(), [&](rs2::stream_profile& s) {return s.stream_type() == RS2_STREAM_INFRARED || s.stream_type() == RS2_STREAM_FISHEYE;});
+
+    assert(find_result != available_streams.end());
+
+    auto stream_type = find_result->stream_type();
 
     _cfg.enable_stream(stream_type,1, width, height, stream_format, hz); // left
     _cfg.enable_stream(stream_type,2, width, height, stream_format, hz); // right
