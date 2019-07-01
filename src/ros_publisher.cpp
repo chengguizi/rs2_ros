@@ -5,6 +5,7 @@
 #include "ros_publisher.hpp"
 
 #include <image_transport/image_transport.h>
+#include <sensor_msgs/Imu.h>
 #include <cv_bridge/cv_bridge.h>
 
 #include <iostream>
@@ -14,28 +15,16 @@
 
 StereoCameraPublisher::StereoCameraPublisher()
 {
-    ros::NodeHandle _nh("~");
-    init();
+    StereoCameraPublisher(ros::NodeHandle("~"));
 }
 
 
-StereoCameraPublisher::StereoCameraPublisher(ros::NodeHandle& nh) : _nh("~")
-{
-    init();
-}
-
-
-StereoCameraPublisher::~StereoCameraPublisher()
-{
-    std::cout << "StereoCameraPublisher() destructor." << std::endl;
-}
-
-void StereoCameraPublisher::init()
+StereoCameraPublisher::StereoCameraPublisher(const ros::NodeHandle& nh) : _nh(nh)
 {
     _it = new image_transport::ImageTransport(_nh);
     _pubLeft = new auto( _it->advertiseCamera("left/image_rect_raw",BUFFER_SIZE));
     _pubRight = new auto( _it->advertiseCamera("right/image_rect_raw",BUFFER_SIZE));
-    std::cout << "Publisher initialised." << std::endl;
+    std::cout << "Stereo Publisher initialised." << std::endl;
 }
 
 void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv, sensor_msgs::CameraInfo cameraInfo_left,
@@ -66,4 +55,33 @@ void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv,
                 sensor_msgs::image_encodings::MONO8, imageRight_cv);
 
     _pubRight->publish(imageRight_bridge.toImageMsg(),cameraInfoPtr_right);
+}
+
+IMUPublisher::IMUPublisher()
+{
+    IMUPublisher(ros::NodeHandle("~"));
+}
+
+IMUPublisher::IMUPublisher(const ros::NodeHandle& nh) : _nh(nh)
+{
+    _pub = _nh.advertise<sensor_msgs::Imu>("imu",BUFFER_SIZE);
+    std::cout << "Imu Publisher initialised." << std::endl;
+}
+
+void IMUPublisher::publish(float gyro[3], float accel[3], ros::Time timestamp, uint64_t seq)
+{
+    sensor_msgs::Imu data;
+
+    data.header.stamp = timestamp;
+    data.header.seq = seq;
+    data.angular_velocity.x = gyro[0];
+    data.angular_velocity.y = gyro[1];
+    data.angular_velocity.z = gyro[2];
+
+    data.linear_acceleration.x = accel[0];
+    data.linear_acceleration.y = accel[1];
+    data.linear_acceleration.z = accel[2];
+
+    _pub.publish(data);
+    
 }

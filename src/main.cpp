@@ -30,16 +30,16 @@
 #include <fstream>
 #include <sstream>
 
-struct irframe_t{
+struct stereo_frame_t{
     cv::Mat left;
     cv::Mat right;
     uint64_t t; // epoch time (system time)
-    uint64_t t_base;
+    uint64_t t_base = 0;
     uint64_t t_callback;
     uint64_t seq;
     std::mutex inProcess;
     std::condition_variable cv;
-}irframe;
+}stereo_frame;
 
 std::ostringstream streamout;
 
@@ -47,51 +47,58 @@ std::ostringstream streamout;
 void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irright are in the heap, must be deleted after use
 {
     // std::cout << "Frame: " << seqleft << std::endl;
-    if ( irframe.inProcess.try_lock())
-    {
-
-        if (data.time_left != data.time_right){
-            ROS_WARN_STREAM( "ImageCallback(): stereo time sync inconsistent!" );
-            return;
-        }
+    
+    if (data.time_left != data.time_right){
+        ROS_WARN_STREAM( "ImageCallback(): stereo time sync inconsistent!" );
+        return;
+    }
             
         
-        if (data.seq_left != data.seq_right){
-            ROS_WARN_STREAM( "ImageCallback(): stereo frame sequence sync inconsistent!" );
-            return;
-        }
-            
-        irframe.seq = data.seq_left;
-        // irframe.t = tleft;
-        irframe.t_callback = ros::Time::now().toNSec(); //std::chrono::system_clock::now().time_since_epoch().count();
+    if (data.seq_left != data.seq_right){
+        ROS_WARN_STREAM( "ImageCallback(): stereo frame sequence sync inconsistent!" );
+        return;
+    }
+    
+    if ( stereo_frame.inProcess.try_lock())
+    { 
+        stereo_frame.seq = data.seq_left;
+        // stereo_frame.t = tleft;
+        stereo_frame.t_callback = ros::Time::now().toNSec(); //std::chrono::system_clock::now().time_since_epoch().count();
 
-        if (data.seq_left == 0)
+        if (stereo_frame.t_base == 0)
         {
-            irframe.t_base = data.sensor_time;
+            stereo_frame.t_base = data.sensor_time;
             ROS_WARN("RealSense: First frame successfully captured!");
         }
         else
         {
             //ROS_INFO_STREAM("ImageCallback(): deleting " << seqleft);
-            delete[] irframe.left.data; // will cause memory leak if this is not freed
-            delete[] irframe.right.data;
+            delete[] stereo_frame.left.data; // will cause memory leak if this is not freed
+            delete[] stereo_frame.right.data;
             //ROS_INFO_STREAM("ImageCallback(): deleted " << seqleft);
         }
         
-        irframe.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
-        irframe.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        irframe.t = data.sensor_time;
+        stereo_frame.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
+        stereo_frame.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
+        stereo_frame.t = data.sensor_time;
 
-        irframe.inProcess.unlock();
+        stereo_frame.inProcess.unlock();
+        stereo_frame.cv.notify_one();
 
-        irframe.cv.notify_one();
-
-    }else
-    {
+    }else{
         ROS_WARN_STREAM( "Missed Frame(" << data.seq_left << ")" );
+        return;
     }
 
-    streamout << (irframe.t_callback - data.sensor_time)/1.0e6 << " " << std::fixed <<data.sensor_time/1.0e6 << std::endl;
+    streamout << (stereo_frame.t_callback - data.sensor_time)/1.0e6 << " " << std::fixed <<data.sensor_time/1.0e6 << std::endl;
+}
+
+void gyroCallback(StereoDriver::GyroDataType data){
+    std::cout << data.seq <<" gyro = " << (uint64_t)(data.timestamp * 1e9) << std::endl;
+}
+
+void accelCallback(StereoDriver::AccelDataType data){
+    std::cout << data.seq << " acce = " << (uint64_t)(data.timestamp * 1e9) << std::endl;
 }
 
 void getCameraInfo(rs2_intrinsics intrinsics, float baseline, sensor_msgs::CameraInfo& left, sensor_msgs::CameraInfo& right)
@@ -200,6 +207,9 @@ int main(int argc, char * argv[]) try
     // Exposure control param
     double a_min, a_max, c;
 
+    std::string sensor_name;
+
+    local_nh.param<std::string>("sensor_name", sensor_name, "RealSense");
     local_nh.param("width", w,1280);
     local_nh.param("height",h,720);
     local_nh.param("frame_rate",hz,30);
@@ -224,7 +234,7 @@ int main(int argc, char * argv[]) try
 
 
 
-    StereoDriver* sys = new StereoDriver("RealSense D4",laser_power);
+    StereoDriver* sys = new StereoDriver(sensor_name, laser_power);
 
     // while (ros::ok()){
     //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -247,8 +257,7 @@ int main(int argc, char * argv[]) try
         ROS_ASSERT(sys->getOption(RS2_OPTION_EXPOSURE) ==  exposure);
         ROS_ASSERT(sys->getOption(RS2_OPTION_GAIN) ==  gain);
     }
-
-    ROS_ASSERT (sys->getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) == auto_exposure_internal);
+    // ROS_ASSERT (sys->getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) == auto_exposure_internal);
 
     ROS_INFO_STREAM("Realsense: Initial shutter speed= 1/" << 1/(exposure*1e-6) << ", gain= " << gain );
 
@@ -279,14 +288,26 @@ int main(int argc, char * argv[]) try
     
 
     sys->registerCallback(stereoImageCallback);
-
+    // sys->registerCallback(gyroCallback);
+    // sys->registerCallback(accelCallback);
+    
 
     StereoCameraPublisher pub(local_nh); // start with private scope
+    IMUPublisher pub_imu(local_nh);
+
+    auto lambda = [&pub_imu](StereoDriver::SyncedIMUDataType data){
+        float gyro[3] = {-data.gx, -data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
+        float accel[3] = {-data.ax, -data.ay, data.az}; // change of coordinates
+        pub_imu.publish(gyro, accel, ros::Time(data.timestamp), data.seq);
+    };
+
+    sys->registerCallback(lambda);
 
     //signal(SIGINT, signalHandler);
 
     //// Start RealSense Pipe
-    sys->startStereoPipe(w,h,hz);
+    sys->enablePoseMotionStream();
+    sys->startStereoPipe(w, h, hz, RS2_STREAM_FISHEYE, RS2_FORMAT_Y8);
 
     sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
     getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);
@@ -324,11 +345,12 @@ int main(int argc, char * argv[]) try
 
     while (ros::ok())
     {
-        static double min_duration = 1, max_duration = 0 , moving_avg_duration = 0;
+        static uint64_t total_count = 0;
+        static double min_duration = 1, max_duration = 0 , moving_avg_duration = 0.0;
         static ros::Time last_stamp = ros::Time(0);
 
-        std::unique_lock<std::mutex> lk(irframe.inProcess);
-        auto ret = irframe.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
+        std::unique_lock<std::mutex> lk(stereo_frame.inProcess);
+        auto ret = stereo_frame.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
 
         if (ret == std::cv_status::timeout){
             ROS_ERROR("Realsense: Wait timeout for new frame arrival. Exiting");
@@ -336,14 +358,14 @@ int main(int argc, char * argv[]) try
             break;
         }
         
-        if (frame_idx != irframe.seq)
+        if (frame_idx != stereo_frame.seq)
         {   
             // Update the window with new data
-            //cv::imshow(window_name_l, irframe.left);
-            //cv::imshow(window_name_r, irframe.right);
+            //cv::imshow(window_name_l, stereo_frame.left);
+            //cv::imshow(window_name_r, stereo_frame.right);
 
             ros::Time sensor_timestamp; 
-            sensor_timestamp.fromNSec(irframe.t);
+            sensor_timestamp.fromNSec(stereo_frame.t);
 
             ////// Report Jitter /////////////
 
@@ -355,7 +377,7 @@ int main(int argc, char * argv[]) try
                     max_duration = delta_t;
                 if (delta_t < min_duration)
                     min_duration = delta_t;
-                if (moving_avg_duration == 0)
+                if (moving_avg_duration == 0.0)
                     moving_avg_duration = delta_t;
                 else
                     moving_avg_duration = 0.98*moving_avg_duration + 0.02*delta_t;
@@ -365,7 +387,7 @@ int main(int argc, char * argv[]) try
                 
                 double jitter = delta_t - moving_avg_duration;
                 
-                if ( std::abs(jitter/moving_avg_duration) > 0.3){// 30% deviation
+                if ( std::abs(jitter/moving_avg_duration) > 0.3 && total_count > 100){// 30% deviation
                     ROS_ERROR_STREAM("Jitter Detected: avg_gap=" << moving_avg_duration << ", but now=" << delta_t);
                 } 
                 
@@ -376,17 +398,17 @@ int main(int argc, char * argv[]) try
 
             
 
-            exposureCtl.calcHistogram(irframe.left,exposure,gain);
+            exposureCtl.calcHistogram(stereo_frame.left,exposure,gain);
 
             if (!auto_exposure_custom && auto_exposure_custom && brighten_dark_image)
             {
                 int min, max;
                 exposureCtl.getIntensityRange(min,max);
                 // ROS_INFO_STREAM_THROTTLE(1,"min=" << min  << ",max=" << max);
-                scaleFrames(irframe.left, irframe.right, min, max);
+                scaleFrames(stereo_frame.left, stereo_frame.right, min, max);
             }
 
-            pub.publish(irframe.left, irframe.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, irframe.seq);
+            pub.publish(stereo_frame.left, stereo_frame.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, stereo_frame.seq);
 
             int meanLux = exposureCtl.EstimateMeanLuminance();
             // if (_visualisation_on)
@@ -400,7 +422,7 @@ int main(int argc, char * argv[]) try
             stats_msg.meanLux = meanLux;
             _camstats_pub.publish(stats_msg);
 
-            if (!auto_exposure_internal && auto_exposure_custom && irframe.seq%2) // only process half of the frames, give some delays
+            if (!auto_exposure_internal && auto_exposure_custom && stereo_frame.seq%2) // only process half of the frames, give some delays
             {
                 int exposure_target = exposure;
                 int gain_target = gain;
@@ -482,13 +504,15 @@ int main(int argc, char * argv[]) try
             }
 
             //cvWaitKey(1); // ~15ms
-            frame_idx = irframe.seq;
+            frame_idx = stereo_frame.seq;
+
+            total_count++;
         }
         lk.unlock();
         // ros::spinOnce();
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-
+    std::cout << "Shutting Down Signal Received..." << std::endl;
     delete sys;
 
     std::cout << "Writing to file..." << std::endl;

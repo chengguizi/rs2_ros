@@ -56,7 +56,7 @@ StereoDriver::StereoDriver(std::string dev_name_str, int laser_power) : _dev_nam
     init();
     _pipe = new rs2::pipeline(_ctx); // Jun 2019: This line has to be called after init(), otherwise T265 will not be detected
 
-    _cblist_stereo.clear();
+    // _cblist_stereo.clear();
 }
 
 StereoDriver::~StereoDriver()
@@ -241,10 +241,10 @@ void StereoDriver::startStereoPipe(int width, int height, int hz, rs2_stream str
 
     _cfg.enable_stream(stream_type,1, width, height, stream_format, hz); // left
     _cfg.enable_stream(stream_type,2, width, height, stream_format, hz); // right
-    std::cout << "Enabled Both" << rs2_stream_to_string(stream_type) << " Stream" << std::endl;
+    std::cout << "Enabled Both " << rs2_stream_to_string(stream_type) << " Stream" << std::endl;
     std::cout << "Stereo Stream Format: " << rs2_format_to_string(stream_format) << std::endl;
 
-    std::cout  << "Starting Pipe... " << std::endl;
+    std::cout  << "Starting Pipe with " << width << "x" << height << " " << stream_format << " @ " << hz << "Hz" << std::endl;
     // Start streaming with default recommended configuration
 
     rs2::pipeline_profile selection = _pipe->start(_cfg, std::bind(&StereoDriver::frameCallback,this, std::placeholders::_1));
@@ -385,11 +385,8 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         }else
         {
             sensor_time = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL) * 1e6;
-            std::cout << sensor_time << std::endl;
+            // std::cout << sensor_time << std::endl;
         }
-        
-                 
-
         
         double time_right = frame_right.get_timestamp()/1000;
         uint64_t seq_right = frame_right.get_frame_number();
@@ -410,45 +407,99 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         void* irright = new char[w*h];
         memcpy(irright,frame_right.get_data(),w*h);
 
-
-        for (callbackStereo cb : _cblist_stereo)
-        {
-            StereoDataType data = {sensor_time, irleft, irright, w, h, time_left, time_right, seq_left, seq_right};
+        StereoDataType data = {sensor_time, irleft, irright, w, h, time_left, time_right, seq_left, seq_right};
+        for (callbackStereo& cb : _cblist_stereo){
             (cb)(data);
-            // time_left and time_right is time since boot of the realsense hardware
         }
         
 
     }else if (rs2::pose_frame pose = frame.as<rs2::pose_frame>()){
-        std::cout << "pose" << std::endl;
+        // None of these supported in pose_frame
+        // std::cout << pose.supports_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP) << std::endl;
+        // std::cout << pose.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::endl;
+        // std::cout << pose.supports_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP) << std::endl;
+        // std::cout << pose.supports_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL) << std::endl;
+
+        double meta_timestamp = pose.get_timestamp() / 1000.0; // in seconds
+        uint64_t meta_seq = pose.get_frame_number();
+        rs2_pose data_pose = pose.get_pose_data();
+
+        for (auto& cb : _cblist_pose)
+        {
+            PoseDataType data = {meta_timestamp, meta_seq, data_pose};
+            cb(data);
+        }
+        
+        // auto meta_timedomain = pose.get_frame_timestamp_domain(); // System Time
+        // std::cout << "pose = " << meta_timestamp << ", "<< meta_timedomain << std::endl;
     }else if (rs2::motion_frame motion = frame.as<rs2::motion_frame>()){
         auto stream_type = motion.get_profile().stream_type();
-        
+        double meta_timestamp = motion.get_timestamp() / 1000.0; // in seconds
+        uint64_t meta_seq = motion.get_frame_number();
+
+        rs2_vector data_motion = motion.get_motion_data();
+
+        // auto meta_timedomain = motion.get_frame_timestamp_domain(); // System Time
+        // std::cout << "motion = " << meta_timestamp << ", "<< meta_timedomain << std::endl;
+
         if ( stream_type == RS2_STREAM_GYRO){
-            std::cout << "gyro" << std::endl;
+            GyroDataType data = {meta_timestamp, meta_seq, data_motion.x, data_motion.y, data_motion.z};
+            imuBuffer.pushGyro(data);
+            for (auto& cb : _cblist_gyro){
+                cb(data);
+            }
+            
         }else if (stream_type == RS2_STREAM_ACCEL){
-            std::cout << "accel" << std::endl;
+            AccelDataType data = {meta_timestamp, meta_seq, data_motion.x, data_motion.y, data_motion.z};
+            imuBuffer.update(data, std::bind(&StereoDriver::imuCallback, this, std::placeholders::_1));
+            for (auto& cb : _cblist_accel){
+                cb(data);
+            }
+            
         }
+
+
     }else{
         std::cerr << "Unknown frame type in callback!" << std::endl;
     }
 }
 
+void StereoDriver::imuCallback(const SyncedIMUDataType& data)
+{
+    for (auto& cb : _cblist_imu){
+        cb(data);
+    }
+}
+
 void StereoDriver::setOption(rs2_option option, float value)
 {
-    _stereo->set_option(option,value); 
+    if (_stereo->supports(option))
+        _stereo->set_option(option,value); 
+    else
+        std::cerr << "The sensor does not support option " << rs2_option_to_string(option) << std::endl;
 }
 
 float StereoDriver::getOption(rs2_option option)
 {
-    return _stereo->get_option(option); 
+    if (_stereo->supports(option))
+        return _stereo->get_option(option);
+    else
+    {
+        std::cerr << "The sensor does not support option " << rs2_option_to_string(option) << std::endl;
+        return 0;
+    }
 }
 
 void StereoDriver::enableAE(uint32_t meanIntensitySetPoint)
 {
     setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
-    auto adv_mode = rs400::advanced_mode( (*_dev) );
 
+    if (!_dev->supports(RS2_CAMERA_INFO_ADVANCED_MODE)){
+        std::cout << "enableAE(): Advance Mode for Exposure not Available..." << std::endl;
+        return;
+    }
+
+    auto adv_mode = rs400::advanced_mode( (*_dev) );
     STAEControl ae_ctl_t;
     ae_ctl_t.meanIntensitySetPoint = meanIntensitySetPoint;
     adv_mode.set_ae_control(ae_ctl_t);
@@ -463,4 +514,19 @@ rs2::option_range StereoDriver::getOptionRange(rs2_option option)
 void StereoDriver::registerCallback(callbackStereo cb)
 {
     _cblist_stereo.push_back(cb);
+}
+
+void StereoDriver::registerCallback(callbackGyro cb)
+{
+    _cblist_gyro.push_back(cb);
+}
+
+void StereoDriver::registerCallback(callbackAccel cb)
+{
+    _cblist_accel.push_back(cb);
+}
+
+void StereoDriver::registerCallback(callbackIMU cb)
+{
+    _cblist_imu.push_back(cb);
 }

@@ -16,47 +16,47 @@
 
 #include <opencv2/opencv.hpp>   // Include OpenCV API
 
-struct irframe_t{
+struct stereo_frame_t{
     cv::Mat left;
     cv::Mat right;
     uint64_t t;
     uint64_t t_base;
     uint64_t seq;
     std::mutex inProcess;
-}irframe;
+}stereo_frame;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
 void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irright are in the heap, must be deleted after use
 {
-    if ( irframe.inProcess.try_lock())
+    if ( stereo_frame.inProcess.try_lock())
     {
         if (data.time_left != data.time_right)
             std::cerr << "ImageCallback(): stereo time sync inconsistent!" << std::endl;
-        irframe.t = data.time_left;
+        stereo_frame.t = data.time_left;
         if (data.seq_left != data.seq_right)
             std::cerr << "ImageCallback(): stereo frame sequence sync inconsistent!" << std::endl;
-        irframe.seq = data.seq_left;
+        stereo_frame.seq = data.seq_left;
 
         if (data.seq_left == 1)
         {
-            irframe.t_base = data.sensor_time;
+            stereo_frame.t_base = data.sensor_time;
         }
         else
         {
-           delete[] irframe.left.data; // will cause memory leak if this is not freed
-           delete[] irframe.right.data;
+           delete[] stereo_frame.left.data; // will cause memory leak if this is not freed
+           delete[] stereo_frame.right.data;
         }
         
-        irframe.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
-        irframe.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        irframe.t = data.sensor_time - irframe.t_base;
+        stereo_frame.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
+        stereo_frame.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
+        stereo_frame.t = data.sensor_time - stereo_frame.t_base;
 
-        std::cout << irframe.t << std::endl;
-        irframe.inProcess.unlock();
+        std::cout << stereo_frame.t << std::endl;
+        stereo_frame.inProcess.unlock();
 
     }else
     {
-        std::cout<< "Missed Frame(" << irframe.seq << ")" << std::endl;
+        std::cout<< "Missed Frame(" << stereo_frame.seq << ")" << std::endl;
     }
 }
 
@@ -82,15 +82,15 @@ int main() try
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)
     {
-        if (frame_idx < irframe.seq)
+        if (frame_idx < stereo_frame.seq)
         {   
-            irframe.inProcess.lock();
+            stereo_frame.inProcess.lock();
 
             // Update the window with new data
-            cv::imshow(window_name_l, irframe.left);
-            cv::imshow(window_name_r, irframe.right);
-            frame_idx = irframe.seq;
-            irframe.inProcess.unlock();
+            cv::imshow(window_name_l, stereo_frame.left);
+            cv::imshow(window_name_r, stereo_frame.right);
+            frame_idx = stereo_frame.seq;
+            stereo_frame.inProcess.unlock();
         }
     }
 

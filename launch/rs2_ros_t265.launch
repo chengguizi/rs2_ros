@@ -1,0 +1,29 @@
+<launch>
+    <node enable-coredumps="false" pkg="rs2_ros" type="rs2_ros" name="stereo" output="screen">
+        <param name="sensor_name" type="str" value="RealSense T2" />
+        <param name="width" value="848" />
+        <param name="height" value="800" />
+        <param name="frame_rate" value="30" />  <!-- value from 6, 15, 30 -->
+        <param name="exposure" value="10000" />
+        <param name="max_exposure" value="12000" />
+        <param name="auto_exposure_internal" value="true" />
+        <param name="auto_exposure_custom" value="false" />
+        <param name="mean_intensity_setpoint" value="1800" />
+        <param name="gain" value="16" /> <!-- value from 16 - 248 -->
+        <param name="laser_power" value="0" /> <!-- from 0 to 360 -->
+
+        <param name="brighten_dark_image" value="false" />
+
+        <param name="visualisation_on" value="false" />
+
+        <param name="exposure_change_rate" value="1.5" />
+        <param name="target_mean" value="110" />
+        <param name="dead_region" value="5" />
+
+        <param name="a_min" value="0.15" />
+        <param name="a_max" value="0.9" />
+        <param name="c" value="0.4" />
+
+    </node>
+    <!-- respawn="true" respawn_delay="2"  -->
+</launch>

@@ -21,26 +21,48 @@ class StereoDriver {
 public:
 
     struct StereoDataType{
-        uint64_t sensor_time;
+        uint64_t sensor_time; // Generally need not be used, for reference only
         void* left;
         void* right;
         int width;
         int height;
-        double time_left;
-        double time_right;
+        double time_left; // System Time Domain
+        double time_right; // System Time Domain
         uint64_t seq_left;
         uint64_t seq_right;
     };
 
     struct PoseDataType{
-
+        double timestamp;
+        uint64_t seq;
+        rs2_pose pose;
     };
 
-    struct IMUDataType{
+    struct GyroDataType{
+        double timestamp;
+        uint64_t seq;
+        float x,y,z;
+    };
 
+    struct AccelDataType{
+        double timestamp;
+        uint64_t seq;
+        float x,y,z;
+    };
+
+    struct SyncedIMUDataType{
+        double timestamp;
+        uint64_t seq;
+        float ax,ay,az; // accelerometer
+        float gx,gy,gz; // gyroscope
     };
 
     typedef std::function<void(StereoDataType)> callbackStereo; 
+    typedef std::function<void(PoseDataType)> callbackPose; 
+    typedef std::function<void(GyroDataType)> callbackGyro; 
+    typedef std::function<void(AccelDataType)> callbackAccel;
+    typedef std::function<void(SyncedIMUDataType)> callbackIMU;
+
                         // time since epoch, left & right image data, width, height, hardware time left & right, hardware sequence left & right
     StereoDriver(std::string dev_name_str = "RealSense D415", int laser_power = 150);
     ~StereoDriver();
@@ -57,9 +79,65 @@ public:
     float get_baseline() const;
     void stopStereoPipe();
     void registerCallback(callbackStereo cb);
+    void registerCallback(callbackGyro cb);
+    void registerCallback(callbackAccel cb);
+    void registerCallback(callbackIMU cb);
 private:
+    
+    // The following struct assumes accel is always arriving slower than gyro, and at a lower frequency than gyro
+    struct IMUBuffer{
+        const static uint buffer_size = 256; // size of char
+        GyroDataType gyro[buffer_size];
+        AccelDataType last_accel;
+
+        unsigned char begin = 0; // at the position of the first data
+        unsigned char end = 0; // one position pass the last data
+
+        IMUBuffer(){
+            last_accel.seq = 0;
+        }
+
+        void pushGyro(GyroDataType data){
+            gyro[end++] = data;
+        }
+        void update(AccelDataType accel, std::function<void(const SyncedIMUDataType&)> cb){
+
+            if (last_accel.seq != 0){ // it is properly initialised 
+                // publish all imu data in the buffer
+
+                // std::cout  << "begin = " << gyro[begin].seq << ", end = " << gyro[end-1].seq << std::endl;
+                double duration = accel.timestamp - last_accel.timestamp;
+
+                double grad_x = (accel.x - last_accel.x) / duration;
+                double grad_y = (accel.y - last_accel.y) / duration;
+                double grad_z = (accel.z - last_accel.z) / duration;
+                
+                // last_accel.timestamp is always older than the gyro[begin]
+                for(; gyro[begin].timestamp < accel.timestamp && begin != end ; begin++){ 
+                    double lapse = (gyro[begin].timestamp - last_accel.timestamp);
+
+                    SyncedIMUDataType imu_data;
+                    imu_data.timestamp = gyro[begin].timestamp;
+                    imu_data.timestamp = gyro[begin].seq;
+                    imu_data.gx = gyro[begin].x;
+                    imu_data.gy = gyro[begin].y;
+                    imu_data.gz = gyro[begin].z;
+
+                    imu_data.ax = lapse * grad_x + last_accel.x;
+                    imu_data.ay = lapse * grad_y + last_accel.y;
+                    imu_data.az = lapse * grad_z + last_accel.z;
+
+                    cb(imu_data);
+                }
+            }
+
+            last_accel = accel;
+        }
+    }imuBuffer;
+
     void init();
     void frameCallback(const rs2::frame& frame);
+    void imuCallback(const SyncedIMUDataType& data);
 
     std::string _dev_name_str;
     rs2::context _ctx;
@@ -81,6 +159,10 @@ private:
     // std::thread _thread;
 
     std::vector<callbackStereo> _cblist_stereo;
+    std::vector<callbackPose> _cblist_pose;
+    std::vector<callbackGyro> _cblist_gyro;
+    std::vector<callbackAccel> _cblist_accel;
+    std::vector<callbackIMU> _cblist_imu;
 };
 
 

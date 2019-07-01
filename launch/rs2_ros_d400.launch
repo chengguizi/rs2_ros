@@ -1,5 +1,6 @@
 <launch>
     <node enable-coredumps="false" pkg="rs2_ros" type="rs2_ros" name="stereo" output="screen">
+        <param name="sensor_name" value="RealSense D4" />
         <param name="width" value="848" />
         <param name="height" value="480" />
         <param name="frame_rate" value="15" />  <!-- value from 6, 15, 30 -->

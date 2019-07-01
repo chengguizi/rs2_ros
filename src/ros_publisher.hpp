@@ -20,8 +20,7 @@ class StereoCameraPublisher
 {
     public:
         StereoCameraPublisher();
-        StereoCameraPublisher(ros::NodeHandle& nh);
-        ~StereoCameraPublisher();
+        StereoCameraPublisher(const ros::NodeHandle& nh);
 
         void publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv, sensor_msgs::CameraInfo cameraInfo_left, sensor_msgs::CameraInfo cameraInfo_right, ros::Time sensor_timestamp, uint64_t seq);
     private:
@@ -30,6 +29,19 @@ class StereoCameraPublisher
         image_transport::CameraPublisher* _pubLeft;
         image_transport::CameraPublisher* _pubRight;
         void init();
+};
+
+class IMUPublisher
+{
+    public:
+        IMUPublisher();
+        IMUPublisher(const ros::NodeHandle& nh);
+
+    void publish(float gyro[3], float accel[3], ros::Time timestamp, uint64_t seq);
+
+    private:
+        ros::NodeHandle _nh;
+        ros::Publisher _pub;
 };
 
 #endif /* ROS_PUBLISHER_H */
