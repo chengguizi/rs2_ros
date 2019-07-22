@@ -81,6 +81,7 @@ rs2_interface::rs2_interface
 
 add_executable(rs2-test-d400 src/test-d400.cpp)
 add_executable(rs2-test-t265 src/test-t265.cpp)
+add_executable(rs2-test-multi-cam src/test-multi-cam.cpp)
 add_executable(rs2-test-nolib src/test-nolib.cpp)
 
 add_executable(rs2-test-enumerate src/test-enumerate.cpp)

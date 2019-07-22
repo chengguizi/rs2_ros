@@ -141,7 +141,7 @@ private:
     void imuCallback(const SyncedIMUDataType& data);
 
     std::string _dev_name_str;
-    rs2::context _ctx;
+    static rs2::context _ctx; // related to LIBUVC interface claiming?
     rs2::config _cfg;
     rs2::pipeline* _pipe;
     rs2::device* _dev;

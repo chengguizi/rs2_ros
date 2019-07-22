@@ -20,6 +20,8 @@
 #include "rs2_interface/stereo_interface.hpp"
 
 
+rs2::context StereoDriver::_ctx = rs2::context(); // to remove linking errors, for static members
+
 ////////////////////////////////
 // helper functions
 ////////////////////////////////
@@ -72,12 +74,13 @@ StereoDriver::~StereoDriver()
 
 void StereoDriver::init()
 {
+    std::cout  << "init()" << std::endl;
     // First, create a rs2::context.
     // The context represents the current platform with respect to connected devices
     rs2::device selected_device;
 
     // Using the context we can get all connected devices in a device list
-    _ctx.query_devices();
+    // _ctx.query_devices();
     auto devices = _ctx.query_devices();
     
     if (devices.size() == 0)
