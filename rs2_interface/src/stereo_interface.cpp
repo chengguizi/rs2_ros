@@ -356,13 +356,15 @@ void StereoDriver::stopStereoPipe()
 // The call back either returns as frameset (synchronised) or a single frame (unsynchronised)
 void StereoDriver::frameCallback(const rs2::frame& frame)
 {
+    static int num_stereo_frames = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
+
     std::lock_guard<std::mutex> lock(callback_stereo_mutex);
     
     // std::cout << "frameCallback()" << std::endl;
     // With callbacks, all synchronized stream will arrive in a single frameset
     if(rs2::frameset dataset = frame.as<rs2::frameset>())
     {
-
+        num_stereo_frames++;
         int num_frames = dataset.size();
         if (num_frames != 2)
             std::cerr << "frameset contains " << num_frames << "frames, should be 2."<< std::endl;
@@ -375,6 +377,13 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         double time_left = frame_left.get_timestamp()/1000;
         uint64_t seq_left = frame_left.get_frame_number();
 
+
+        if (num_stereo_frames == 1)
+        {
+            auto meta_timedomain = frame_left.get_frame_timestamp_domain();
+            std::cout << "stereo left time = " << (uint64_t) (time_left * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
+        }
+
         int w = frame_left.get_width();
         int h = frame_left.get_height();
 
@@ -383,27 +392,30 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
 
         // auto meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
 
-        uint64_t sensor_time;
-        if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP) 
-            && frame_left.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP))
-        {
-            auto meta_sensortime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP); // middle of shutter
-            auto meta_frametime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP); // start UVC frame tx
-            // uint64_t meta_toa = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL); // kernel to user space
-            uint64_t meta_backendtime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP); // usb controller to kernel , in millisecond?
+        uint64_t mid_shutter_time_estimate = 0;
 
-            const uint64_t delay_sensor_to_frame = meta_frametime - meta_sensortime;
-            // 1e7; // 10us delay, RS2_FRAME_METADATA_FRAME_TIMESTAMP - RS2_FRAME_METADATA_SENSOR_TIMESTAMP
-            // std::cout << std::fixed << "delay_sensor_to_frame"<< delay_sensor_to_frame << "us" << std::endl;
-            // std::cout << "meta_backendtime" << meta_backendtime << std::endl;
-            // uint64_t delay_uvc_to_frontend = meta_toa - meta_backendtime ; // ~16000us delay meta_toa - meta_backendtime
+        //// NO LONGER NEEDED DUE TO FIRMWARE UPDATE FOR GLOBAL TIME IMPLEMENTATION FROM LIBREALSENSE
 
-            sensor_time = meta_backendtime * 1e6 - delay_sensor_to_frame* 1e3; // in nanosecond, epoch time
-        }else
-        {
-            sensor_time = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL) * 1e6;
-            // std::cout << sensor_time << std::endl;
-        }
+        // if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP) 
+        //     && frame_left.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP))
+        // {
+        //     auto meta_sensortime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP); // middle of shutter
+        //     auto meta_frametime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP); // start UVC frame tx
+        //     // uint64_t meta_toa = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL); // kernel to user space
+        //     uint64_t meta_backendtime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP); // usb controller to kernel , in millisecond?
+
+        //     const uint64_t delay_sensor_to_frame = meta_frametime - meta_sensortime;
+        //     // 1e7; // 10us delay, RS2_FRAME_METADATA_FRAME_TIMESTAMP - RS2_FRAME_METADATA_SENSOR_TIMESTAMP
+        //     // std::cout << std::fixed << "delay_sensor_to_frame"<< delay_sensor_to_frame << "us" << std::endl;
+        //     // std::cout << "meta_backendtime" << meta_backendtime << std::endl;
+        //     // uint64_t delay_uvc_to_frontend = meta_toa - meta_backendtime ; // ~16000us delay meta_toa - meta_backendtime
+
+        //     mid_shutter_time_estimate = meta_backendtime * 1e6 - delay_sensor_to_frame* 1e3; // in nanosecond, epoch time
+        // }else
+        // {
+        //     mid_shutter_time_estimate = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL) * 1e6;
+        //     // std::cout << mid_shutter_time_estimate << std::endl;
+        // }
         
         double time_right = frame_right.get_timestamp()/1000;
         uint64_t seq_right = frame_right.get_frame_number();
@@ -424,13 +436,15 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         void* irright = new char[w*h];
         memcpy(irright,frame_right.get_data(),w*h);
 
-        StereoDataType data = {sensor_time, irleft, irright, w, h, time_left, time_right, seq_left, seq_right};
+        StereoDataType data = {mid_shutter_time_estimate, irleft, irright, w, h, time_left, time_right, seq_left, seq_right};
         for (callbackStereo& cb : _cblist_stereo){
             (cb)(data);
         }
         
 
     }else if (rs2::pose_frame pose = frame.as<rs2::pose_frame>()){
+        num_pose_frames++;
+
         // None of these supported in pose_frame
         // std::cout << pose.supports_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP) << std::endl;
         // std::cout << pose.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP) << std::endl;
@@ -447,8 +461,12 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
             cb(data);
         }
         
-        // auto meta_timedomain = pose.get_frame_timestamp_domain(); // System Time
-        // std::cout << "pose = " << meta_timestamp << ", "<< meta_timedomain << std::endl;
+        if (num_pose_frames == 1)
+        {
+            auto meta_timedomain = pose.get_frame_timestamp_domain();
+            std::cout << "pose time = " << (uint64_t) (meta_timestamp * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
+        }
+        
     }else if (rs2::motion_frame motion = frame.as<rs2::motion_frame>()){
         auto stream_type = motion.get_profile().stream_type();
         double meta_timestamp = motion.get_timestamp() / 1000.0; // in seconds
@@ -456,21 +474,33 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
 
         rs2_vector data_motion = motion.get_motion_data();
 
-        // auto meta_timedomain = motion.get_frame_timestamp_domain(); // System Time
-        // std::cout << "motion = " << meta_timestamp << ", "<< meta_timedomain << std::endl;
-
         if ( stream_type == RS2_STREAM_GYRO){
+            num_gyro_frames++;
             GyroDataType data = {meta_timestamp, meta_seq, data_motion.x, data_motion.y, data_motion.z};
             imuBuffer.pushGyro(data);
             for (auto& cb : _cblist_gyro){
                 cb(data);
             }
+
+            if (num_gyro_frames == 1)
+            {
+                auto meta_timedomain = motion.get_frame_timestamp_domain();
+                std::cout << "gyro time = " << (uint64_t) ( meta_timestamp * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
+            }
+        
             
         }else if (stream_type == RS2_STREAM_ACCEL){
+            num_accel_frames++;
             AccelDataType data = {meta_timestamp, meta_seq, data_motion.x, data_motion.y, data_motion.z};
             imuBuffer.update(data, std::bind(&StereoDriver::imuCallback, this, std::placeholders::_1));
             for (auto& cb : _cblist_accel){
                 cb(data);
+            }
+
+            if (num_accel_frames == 1)
+            {
+                auto meta_timedomain = motion.get_frame_timestamp_domain();
+                std::cout << "accel time = " << (uint64_t) ( meta_timestamp * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
             }
             
         }

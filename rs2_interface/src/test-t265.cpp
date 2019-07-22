@@ -39,7 +39,7 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
 
         if (data.seq_left == 1)
         {
-            stereo_frame.t_base = data.sensor_time;
+            stereo_frame.t_base = data.mid_shutter_time_estimate;
         }
         else
         {
@@ -49,7 +49,7 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
         
         stereo_frame.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
         stereo_frame.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        stereo_frame.t = data.sensor_time - stereo_frame.t_base;
+        stereo_frame.t = data.mid_shutter_time_estimate - stereo_frame.t_base;
 
         std::cout << stereo_frame.t << std::endl;
         stereo_frame.inProcess.unlock();

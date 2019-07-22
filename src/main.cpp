@@ -33,8 +33,8 @@
 struct stereo_frame_t{
     cv::Mat left;
     cv::Mat right;
-    uint64_t t; // epoch time (system time)
-    uint64_t t_base = 0;
+    uint64_t t = 0; // epoch time (system time)
+    // uint64_t t_base = 0;
     uint64_t t_callback;
     uint64_t seq;
     std::mutex inProcess;
@@ -65,9 +65,8 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
         // stereo_frame.t = tleft;
         stereo_frame.t_callback = ros::Time::now().toNSec(); //std::chrono::system_clock::now().time_since_epoch().count();
 
-        if (stereo_frame.t_base == 0)
+        if (stereo_frame.t == 0)
         {
-            stereo_frame.t_base = data.sensor_time;
             ROS_WARN("RealSense: First frame successfully captured!");
         }
         else
@@ -80,7 +79,7 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
         
         stereo_frame.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
         stereo_frame.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        stereo_frame.t = data.sensor_time;
+        stereo_frame.t = data.time_left * 1e9;
 
         stereo_frame.inProcess.unlock();
         stereo_frame.cv.notify_one();
@@ -90,7 +89,9 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
         return;
     }
 
-    streamout << (stereo_frame.t_callback - data.sensor_time)/1.0e6 << " " << std::fixed <<data.sensor_time/1.0e6 << std::endl;
+    // std::cout << (uint64_t) (data.time_left * 1e9) << ",  " << data.mid_shutter_time_estimate << std::endl;
+
+    streamout << (stereo_frame.t_callback - data.mid_shutter_time_estimate)/1.0e6 << " " << std::fixed <<data.mid_shutter_time_estimate/1.0e6 << std::endl;
 }
 
 void gyroCallback(StereoDriver::GyroDataType data){
@@ -307,6 +308,11 @@ int main(int argc, char * argv[]) try
 
     //// Start RealSense Pipe
     sys->enablePoseMotionStream();
+
+    // If available, enable global time
+    sys->setOption(RS2_OPTION_GLOBAL_TIME_ENABLED,1);
+    std::cout << "GLOBAL TIME ENABLED = " << sys->getOption(RS2_OPTION_GLOBAL_TIME_ENABLED) << std::endl;
+
     sys->startStereoPipe(w, h, hz, RS2_FORMAT_Y8);
 
     sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;

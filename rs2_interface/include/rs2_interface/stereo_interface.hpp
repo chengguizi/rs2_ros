@@ -21,7 +21,7 @@ class StereoDriver {
 public:
 
     struct StereoDataType{
-        uint64_t sensor_time; // Generally need not be used, for reference only
+        uint64_t mid_shutter_time_estimate; // Generally need not be used, for reference only
         void* left;
         void* right;
         int width;
