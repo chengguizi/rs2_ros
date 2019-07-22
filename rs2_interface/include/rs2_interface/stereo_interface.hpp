@@ -68,6 +68,7 @@ public:
     ~StereoDriver();
     void setOption(rs2_option option, float value);
     float getOption(rs2_option option);
+    std::string getDeviceName(){return _dev_name_str;};
 
     void enableAE(uint32_t meanIntensitySetPoint);
     void disableAE(){setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);};

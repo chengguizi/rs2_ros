@@ -296,13 +296,25 @@ int main(int argc, char * argv[]) try
     StereoCameraPublisher pub(local_nh); // start with private scope
     IMUPublisher pub_imu(local_nh);
 
-    auto lambda = [&pub_imu](StereoDriver::SyncedIMUDataType data){
-        float gyro[3] = {-data.gx, -data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
-        float accel[3] = {-data.ax, -data.ay, data.az}; // change of coordinates
-        pub_imu.publish(gyro, accel, ros::Time(data.timestamp), data.seq);
-    };
-
-    sys->registerCallback(lambda);
+    const std::string device_name = sys->getDeviceName();
+    if (device_name.find("T265") != std::string::npos)
+    {
+        // for Realsense T265
+        auto lambda = [&pub_imu](StereoDriver::SyncedIMUDataType data){
+            float gyro[3] = {-data.gx, -data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
+            float accel[3] = {-data.ax, -data.ay, data.az}; // change of coordinates
+            pub_imu.publish(gyro, accel, ros::Time(data.timestamp), data.seq);
+        };
+        sys->registerCallback(lambda);
+    }else if(device_name.find("D435I") != std::string::npos){
+        // for Realsense D435i
+        auto lambda = [&pub_imu](StereoDriver::SyncedIMUDataType data){
+            float gyro[3] = {data.gx, data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
+            float accel[3] = {data.ax, data.ay, data.az}; // change of coordinates
+            pub_imu.publish(gyro, accel, ros::Time(data.timestamp), data.seq);
+        };
+        sys->registerCallback(lambda);
+    }
 
     //signal(SIGINT, signalHandler);
 

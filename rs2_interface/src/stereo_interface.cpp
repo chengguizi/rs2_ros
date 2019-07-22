@@ -109,7 +109,8 @@ void StereoDriver::init()
 
             if (!rs2_found && name.find(_dev_name_str) != std::string::npos)
             {
-                std::cout << "found RealSense Camera: " << _dev_name_str << std::endl;
+                std::cout << "found RealSense Camera: " << name << std::endl;
+                _dev_name_str = name;
                 rs2_found =  true;
             }
 
