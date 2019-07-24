@@ -1,0 +1,9 @@
+<launch>
+    <node enable-coredumps="false" pkg="rs2_ros" type="rs2_ros" name="stereo" output="screen">
+        <param name="sensor_name" value="RealSense" />
+
+        <rosparam file="$(find rs2_ros)/launch/param_d400.yaml" ns="d400"/>
+        <rosparam file="$(find rs2_ros)/launch/param_t265.yaml" ns="t265"/>
+    </node>
+    <!-- respawn="true" respawn_delay="2"  -->
+</launch>

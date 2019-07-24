@@ -1,0 +1,21 @@
+width: 848
+height: 800
+frame_rate: 30
+exposure: 5000
+max_exposure: 12000
+auto_exposure_internal: true
+auto_exposure_custom: false
+mean_intensity_setpoint: 1800
+gain: 16
+laser_power: 0
+
+brighten_dark_image: false
+visualisation_on: false
+
+exposure_change_rate: 1.5
+target_mean: 110
+dead_region: 5
+
+a_min: 0.4
+a_max: 0.9
+c: 0.5

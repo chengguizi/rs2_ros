@@ -16,6 +16,8 @@
 #include <functional>
 #include <vector>
 
+#include <map>
+
 class StereoDriver {
 
 public:
@@ -64,7 +66,10 @@ public:
     typedef std::function<void(SyncedIMUDataType)> callbackIMU;
 
                         // time since epoch, left & right image data, width, height, hardware time left & right, hardware sequence left & right
-    StereoDriver(std::string dev_name_str = "RealSense D415", int laser_power = 150);
+    static std::map<std::string, std::string> getDeviceList(std::string target_device_name = std::string());
+    // static std::vector<std::string> getSNfromName(std::string target_device_name);
+    
+    StereoDriver(std::string dev_sn_str = "");
     ~StereoDriver();
     void setOption(rs2_option option, float value);
     float getOption(rs2_option option);
@@ -74,11 +79,12 @@ public:
     void disableAE(){setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);};
     rs2::option_range getOptionRange(rs2_option option);
     void enablePoseMotionStream();
-    void startStereoPipe(int width, int height, int hz, rs2_format stream_format = RS2_FORMAT_Y8);
+    void enableStereoStream(int width = 0, int height = 0, int hz = 0, rs2_format stream_format = RS2_FORMAT_ANY);
+    void startPipe();
     rs2_intrinsics get_intrinsics() const; // only call this after pipe started
     rs2_extrinsics get_extrinsics_left_to_right() const;
     float get_baseline() const;
-    void stopStereoPipe();
+    void stopPipe();
     void registerCallback(callbackStereo cb);
     void registerCallback(callbackGyro cb);
     void registerCallback(callbackAccel cb);
@@ -136,17 +142,18 @@ private:
         }
     }imuBuffer;
 
-    void init();
+    bool init();
     void frameCallback(const rs2::frame& frame);
     void imuCallback(const SyncedIMUDataType& data);
 
-    std::string _dev_name_str;
+    std::string _dev_sn_str, _dev_name_str;
     static rs2::context _ctx; // related to LIBUVC interface claiming?
     rs2::config _cfg;
     rs2::pipeline* _pipe;
     rs2::device* _dev;
     rs2::sensor* _stereo;
     rs2::pipeline_profile* _profile;
+    rs2_stream _stereo_stream_type;
 
     rs2_intrinsics _intrinsics;
     rs2_extrinsics _extrinsics_left_to_right;

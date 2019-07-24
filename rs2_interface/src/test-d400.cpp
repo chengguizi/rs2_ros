@@ -49,7 +49,7 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
         
         irframe.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
         irframe.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        irframe.t = data.mid_shutter_time_estimate - irframe.t_base;
+        // irframe.t = data.mid_shutter_time_estimate - irframe.t_base;
 
         std::cout << irframe.t << std::endl;
         irframe.inProcess.unlock();
@@ -62,11 +62,32 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
 
 int main() try
 {
-    StereoDriver* sys = new StereoDriver("RealSense D4");
+    const std::string target_device_name = "RealSense D4";
+    auto device_list = StereoDriver::getDeviceList();
+    std::string sn;
+    std::cout << "Listing Plugged-in Devices... " << std::endl;
+    for (auto& device : device_list)
+    {
+        std::cout << device.first << std::endl;
+        if (device.first.find(target_device_name) != std::string::npos)
+        {
+            sn = device.second;
+            break;
+        }     
+    }
+    if (sn.empty())
+    {
+        std::cerr << target_device_name << " is not found, quitting." << std::endl;
+        exit(-1);
+    }
+
+    StereoDriver* sys = new StereoDriver(sn);
 
     // for more options, please refer rs_option.h
-    sys->setOption(RS2_OPTION_EXPOSURE,10000); // in usec
+    sys->setOption(RS2_OPTION_EXPOSURE,15000); // in usec
     sys->setOption(RS2_OPTION_GAIN,16);
+    sys->enableAE(1800);
+    // sys->setOption(RS2_OPTION_LASER_POWER,0);
 
     const auto window_name_l = "Display Image Left";
     const auto window_name_r = "Display Image Right";
@@ -75,8 +96,8 @@ int main() try
 
     sys->registerCallback(stereoImageCallback);
 
-
-    sys->startStereoPipe(1280, 720, 30);
+    sys->enableStereoStream();
+    sys->startPipe();
 
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)
@@ -95,7 +116,7 @@ int main() try
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
-    sys->stopStereoPipe();
+    sys->stopPipe();
 
     std::cout << "main() exits" << std::endl;
 

@@ -30,21 +30,51 @@
 #include <fstream>
 #include <sstream>
 
-struct stereo_frame_t{
+
+struct CameraParam{
+    int w,h,hz;
+    int exposure,gain,laser_power;
+    bool auto_exposure_internal,auto_exposure_custom;
+    int mean_intensity_setpoint;
+    bool _visualisation_on;
+    bool brighten_dark_image;
+
+    double exposure_change_rate;
+    int target_mean;
+    int dead_region;
+
+    // Exposure control param
+    double a_min, a_max, c;
+};
+
+struct frame_t{
+    StereoDriver* sys;
+    std::string frame_name;
+    CameraParam param;
+
+    StereoCameraPublisher* pub;
+    IMUPublisher* pub_imu;
+    sensor_msgs::CameraInfo cameraInfo_left, cameraInfo_right;
+
     cv::Mat left;
     cv::Mat right;
     uint64_t t = 0; // epoch time (system time)
     // uint64_t t_base = 0;
-    uint64_t t_callback;
-    uint64_t seq;
-    std::mutex inProcess;
+    // uint64_t t_callback;
+    uint64_t seq = 0;
+    std::mutex* inProcess;
     std::condition_variable cv;
-}stereo_frame;
+
+    void init(const std::string name){
+        inProcess = new std::mutex();
+        frame_name = name;
+    }
+}ir_frame, fisheye_frame;
 
 std::ostringstream streamout;
 
 // from inner process loop to triggering this callback function takes around 0.2-0.4ms, tested
-void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irright are in the heap, must be deleted after use
+void stereoImageCallback(StereoDriver::StereoDataType data, frame_t& frame) // irleft and irright are in the heap, must be deleted after use
 {
     // std::cout << "Frame: " << seqleft << std::endl;
     
@@ -59,39 +89,39 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
         return;
     }
     
-    if ( stereo_frame.inProcess.try_lock())
+    if ( frame.inProcess->try_lock())
     { 
-        stereo_frame.seq = data.seq_left;
-        // stereo_frame.t = tleft;
-        stereo_frame.t_callback = ros::Time::now().toNSec(); //std::chrono::system_clock::now().time_since_epoch().count();
+        frame.seq = data.seq_left;
 
-        if (stereo_frame.t == 0)
+        // frame.t_callback = ros::Time::now().toNSec(); //std::chrono::system_clock::now().time_since_epoch().count();
+
+        if (frame.t == 0)
         {
-            ROS_WARN("RealSense: First frame successfully captured!");
+            ROS_WARN_STREAM("RealSense: First frame successfully captured for " << frame.frame_name );
         }
         else
         {
             //ROS_INFO_STREAM("ImageCallback(): deleting " << seqleft);
-            delete[] stereo_frame.left.data; // will cause memory leak if this is not freed
-            delete[] stereo_frame.right.data;
+            delete[] frame.left.data; // will cause memory leak if this is not freed
+            delete[] frame.right.data;
             //ROS_INFO_STREAM("ImageCallback(): deleted " << seqleft);
         }
         
-        stereo_frame.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
-        stereo_frame.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        stereo_frame.t = data.time_left * 1e9;
+        frame.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
+        frame.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
+        frame.t = data.time_left * 1e9;
 
-        stereo_frame.inProcess.unlock();
-        stereo_frame.cv.notify_one();
+        frame.inProcess->unlock();
+        frame.cv.notify_one();
 
     }else{
-        ROS_WARN_STREAM( "Missed Frame(" << data.seq_left << ")" );
+        ROS_WARN_STREAM( "Missed Frame(" << data.seq_left << ") for " << frame.frame_name );
         return;
     }
 
     // std::cout << (uint64_t) (data.time_left * 1e9) << ",  " << data.mid_shutter_time_estimate << std::endl;
 
-    streamout << (stereo_frame.t_callback - data.mid_shutter_time_estimate)/1.0e6 << " " << std::fixed <<data.mid_shutter_time_estimate/1.0e6 << std::endl;
+    // streamout << (stereo_frame.t_callback - data.mid_shutter_time_estimate)/1.0e6 << " " << std::fixed <<data.mid_shutter_time_estimate/1.0e6 << std::endl;
 }
 
 void gyroCallback(StereoDriver::GyroDataType data){
@@ -186,7 +216,7 @@ void scaleFrames(cv::Mat &leftImg, cv::Mat &rightImg, int min, int max)
 
 int main(int argc, char * argv[]) try
 {
-
+    std::cout << "main()" << std::endl;
     // ros initialisation
     ros::init(argc, argv, "rs2_ros");
     ros::NodeHandle nh;
@@ -194,141 +224,151 @@ int main(int argc, char * argv[]) try
 
     ros::Publisher _camstats_pub = local_nh.advertise<rs2_ros::CameraStats>("camera_stats",10);
 
-    int w,h,hz;
-    int exposure,gain,laser_power;
-    bool auto_exposure_internal,auto_exposure_custom;
-    int mean_intensity_setpoint;
-    bool _visualisation_on;
-    bool brighten_dark_image;
-
-    double exposure_change_rate;
-    int target_mean;
-    int dead_region;
-
-    // Exposure control param
-    double a_min, a_max, c;
-
-    std::string sensor_name;
-
-    local_nh.param<std::string>("sensor_name", sensor_name, "RealSense");
-    local_nh.param("width", w,1280);
-    local_nh.param("height",h,720);
-    local_nh.param("frame_rate",hz,30);
-    local_nh.param("exposure",exposure,20000);
-    local_nh.param("auto_exposure_internal",auto_exposure_internal,false);
-    local_nh.param("auto_exposure_custom",auto_exposure_custom,false);
-    local_nh.param("mean_intensity_setpoint",mean_intensity_setpoint,1536);
-    local_nh.param("gain",gain,40);
-    local_nh.param("laser_power",laser_power,150);
-
-    local_nh.param("exposure_change_rate",exposure_change_rate,1.0);
-    local_nh.param("target_mean",target_mean,110);
-    local_nh.param("dead_region",dead_region,5);
-
-    local_nh.param("a_min",a_min,0.15);
-    local_nh.param("a_max",a_max,0.85);
-    local_nh.param("c",c,0.5);
-
     
-    local_nh.param("brighten_dark_image",brighten_dark_image,false);
-    local_nh.param("visualisation_on",_visualisation_on,false);
+    std::string sensor_name;
+    // Obtain list of desired Realsense Camera
+    local_nh.getParam("sensor_name", sensor_name);
+    auto device_list = StereoDriver::getDeviceList(sensor_name);
 
-
-
-    StereoDriver* sys = new StereoDriver(sensor_name, laser_power);
-
-    // while (ros::ok()){
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    //     ROS_INFO("Waiting");
-    // }
-
-    if (laser_power == 0)
-        sys->setOption(RS2_OPTION_EMITTER_ENABLED,0);
-
-    // for more options, please refer rs_option.h
-    if (auto_exposure_internal)
-        sys->enableAE( static_cast<uint32_t>(mean_intensity_setpoint) );
-        
-    else
+    for (auto& device : device_list)
     {
-        sys->disableAE();
-        sys->setOption(RS2_OPTION_EXPOSURE,exposure); // in usec
-        sys->setOption(RS2_OPTION_GAIN,gain);
+        std::string param_ns;
+        CameraParam* camparam_ptr;
+        StereoDriver* sys;
+        frame_t* frame_ptr;
+        // <name, serial number> pair
+        if (device.first.find("Intel RealSense D435") != std::string::npos)
+        {
+            ir_frame.init("d400");
+            param_ns = "d400";
+            camparam_ptr = &(ir_frame.param);
+            sys = ir_frame.sys = new StereoDriver(device.second);
+            frame_ptr = &ir_frame;
 
-        ROS_ASSERT(sys->getOption(RS2_OPTION_EXPOSURE) ==  exposure);
-        ROS_ASSERT(sys->getOption(RS2_OPTION_GAIN) ==  gain);
+            
+
+        }else if (device.first.find("Intel RealSense T265") != std::string::npos)
+        {
+            fisheye_frame.init("t265");
+            param_ns = "t265";
+            camparam_ptr = &(fisheye_frame.param);
+            sys = fisheye_frame.sys = new StereoDriver(device.second);
+            frame_ptr = &fisheye_frame;
+        }else
+        {
+            std::cerr << "Unkown sensor..." << std::endl;
+            continue;
+        }
+
+
+        std::cout << "Registering callback for " << device.first << std::endl;
+        sys->registerCallback(std::bind(stereoImageCallback, std::placeholders::_1, std::ref(*frame_ptr)));
+
+        ros::NodeHandle device_nh("~/" + param_ns);
+
+        device_nh.getParam("width", camparam_ptr->w);
+        device_nh.getParam("height",camparam_ptr->h);
+        device_nh.getParam("frame_rate",camparam_ptr->hz);
+        device_nh.getParam("exposure",camparam_ptr->exposure);
+        device_nh.getParam("auto_exposure_internal",camparam_ptr->auto_exposure_internal);
+        device_nh.getParam("auto_exposure_custom",camparam_ptr->auto_exposure_custom);
+        device_nh.getParam("mean_intensity_setpoint",camparam_ptr->mean_intensity_setpoint);
+        device_nh.getParam("gain",camparam_ptr->gain);
+        device_nh.getParam("laser_power",camparam_ptr->laser_power);
+
+        device_nh.getParam("exposure_change_rate",camparam_ptr->exposure_change_rate);
+        device_nh.getParam("target_mean",camparam_ptr->target_mean);
+        device_nh.getParam("dead_region",camparam_ptr->dead_region);
+
+        device_nh.getParam("a_min",camparam_ptr->a_min);
+        device_nh.getParam("a_max",camparam_ptr->a_max);
+        device_nh.getParam("c",camparam_ptr->c);
+
+        
+        device_nh.getParam("brighten_dark_image",camparam_ptr->brighten_dark_image);
+        device_nh.getParam("visualisation_on",camparam_ptr->_visualisation_on);
+
+        // for more options, please refer rs_option.h
+        if (camparam_ptr->auto_exposure_internal)
+            sys->enableAE( static_cast<uint32_t>(camparam_ptr->mean_intensity_setpoint) );
+            
+        else
+        {
+            sys->disableAE();
+            sys->setOption(RS2_OPTION_EXPOSURE,camparam_ptr->exposure); // in usec
+            sys->setOption(RS2_OPTION_GAIN,camparam_ptr->gain);
+
+            ROS_ASSERT(sys->getOption(RS2_OPTION_EXPOSURE) ==  camparam_ptr->exposure);
+            ROS_ASSERT(sys->getOption(RS2_OPTION_GAIN) ==  camparam_ptr->gain);
+
+            ROS_INFO_STREAM( device.first << ": Initial shutter speed= 1/" << 1/(camparam_ptr->exposure*1e-6) << ", gain= " << camparam_ptr->gain );
+        }
+
+
+        frame_ptr->pub = new StereoCameraPublisher(device_nh); // start with private scope
+        frame_ptr->pub_imu = new IMUPublisher(device_nh);
+
+
+        if (param_ns == "t265")
+        {
+            // for Realsense T265
+            auto lambda = [&](StereoDriver::SyncedIMUDataType data){
+                float gyro[3] = {-data.gx, -data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
+                float accel[3] = {-data.ax, -data.ay, data.az}; // change of coordinates
+                frame_ptr->pub_imu->publish(gyro, accel, ros::Time(data.timestamp), data.seq);
+            };
+            sys->registerCallback(lambda);
+        }else if(param_ns == "d400"){
+            // for Realsense D435i
+            auto lambda = [&](StereoDriver::SyncedIMUDataType data){
+                float gyro[3] = {data.gx, data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
+                float accel[3] = {data.ax, data.ay, data.az}; // change of coordinates
+                frame_ptr->pub_imu->publish(gyro, accel, ros::Time(data.timestamp), data.seq);
+            };
+            sys->registerCallback(lambda);
+        }else{
+            std::cerr << "Unkown namespace" << std::endl;
+            exit(-1);
+        }
+
+        sys->enablePoseMotionStream();
+
+        // If available, enable global time
+        // sys->setOption(RS2_OPTION_GLOBAL_TIME_ENABLED,1);
+        std::cout << "w=" << camparam_ptr->w << ", h=" << camparam_ptr->h << ", hz=" << camparam_ptr->hz << std::endl;
+        sys->enableStereoStream(camparam_ptr->w, camparam_ptr->h, camparam_ptr->hz, RS2_FORMAT_Y8);
+        sys->startPipe();
+
+        getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), frame_ptr->cameraInfo_left, frame_ptr->cameraInfo_right);
     }
-    // ROS_ASSERT (sys->getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) == auto_exposure_internal);
 
-    ROS_INFO_STREAM("Realsense: Initial shutter speed= 1/" << 1/(exposure*1e-6) << ", gain= " << gain );
-
-    // const auto window_name_l = "Display Image Left";
-    // const auto window_name_r = "Display Image Right";
-    //cv::namedWindow(window_name_l, cv::WINDOW_AUTOSIZE);
-    //cv::namedWindow(window_name_r, cv::WINDOW_AUTOSIZE);
-
+    if (ir_frame.sys == nullptr && fisheye_frame.sys == nullptr)
+    {
+        std::cerr << "No devices detected, quitting." << std::endl;
+        exit(-1);
+    }
+    
     //////////////////////////////////
     //// Empirical Latency Test
     //////////////////////////////////
     
-    {
-        ROS_INFO("Start Empirical Latency Test");
-        const int N_test = 100;
-        auto t1 = ros::Time::now();
-        for (int i=0; i<N_test; i++){
-            auto exposure = sys->getOption(RS2_OPTION_EXPOSURE);
-            (void) exposure;
-        }
-        auto t2 = ros::Time::now();
-        double latency = (t2-t1).toSec()/N_test/2;
-        ROS_INFO_STREAM("One-way Latency = " << latency*1000 << "ms");
-    }
+    // {
+    //     ROS_INFO("Start Empirical Latency Test");
+    //     const int N_test = 100;
+    //     auto t1 = ros::Time::now();
+    //     for (int i=0; i<N_test; i++){
+    //         auto exposure = sys->getOption(RS2_OPTION_EXPOSURE);
+    //         (void) exposure;
+    //     }
+    //     auto t2 = ros::Time::now();
+    //     double latency = (t2-t1).toSec()/N_test/2;
+    //     ROS_INFO_STREAM("One-way Latency = " << latency*1000 << "ms");
+    // }
     
 
     /////////// Test End /////////////
-    
 
-    sys->registerCallback(stereoImageCallback);
-    // sys->registerCallback(gyroCallback);
-    // sys->registerCallback(accelCallback);
-    
-
-    StereoCameraPublisher pub(local_nh); // start with private scope
-    IMUPublisher pub_imu(local_nh);
-
-    const std::string device_name = sys->getDeviceName();
-    if (device_name.find("T265") != std::string::npos)
-    {
-        // for Realsense T265
-        auto lambda = [&pub_imu](StereoDriver::SyncedIMUDataType data){
-            float gyro[3] = {-data.gx, -data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
-            float accel[3] = {-data.ax, -data.ay, data.az}; // change of coordinates
-            pub_imu.publish(gyro, accel, ros::Time(data.timestamp), data.seq);
-        };
-        sys->registerCallback(lambda);
-    }else if(device_name.find("D435I") != std::string::npos){
-        // for Realsense D435i
-        auto lambda = [&pub_imu](StereoDriver::SyncedIMUDataType data){
-            float gyro[3] = {data.gx, data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
-            float accel[3] = {data.ax, data.ay, data.az}; // change of coordinates
-            pub_imu.publish(gyro, accel, ros::Time(data.timestamp), data.seq);
-        };
-        sys->registerCallback(lambda);
-    }
-
-    //signal(SIGINT, signalHandler);
-
-    //// Start RealSense Pipe
-    sys->enablePoseMotionStream();
-
-    // If available, enable global time
-    sys->setOption(RS2_OPTION_GLOBAL_TIME_ENABLED,1);
-    std::cout << "GLOBAL TIME ENABLED = " << sys->getOption(RS2_OPTION_GLOBAL_TIME_ENABLED) << std::endl;
-
-    sys->startStereoPipe(w, h, hz, RS2_FORMAT_Y8);
-
-    sensor_msgs::CameraInfo _cameraInfo_left, _cameraInfo_right;
-    getCameraInfo( sys->get_intrinsics(), sys->get_baseline(), _cameraInfo_left, _cameraInfo_right);
+    StereoDriver* sys = ir_frame.sys;
 
 
     ExposureControl exposureCtl(0.15,0.8,0.6);
@@ -349,7 +389,7 @@ int main(int argc, char * argv[]) try
         int gain;
     };
 
-    SettingFilter settingFilter = {exposure,gain};
+    SettingFilter settingFilter = {ir_frame.param.exposure,ir_frame.param.gain};
 
     ros::AsyncSpinner spinner(2);
 	spinner.start();
@@ -358,8 +398,8 @@ int main(int argc, char * argv[]) try
 
     bool error_exit = false;
 
-    std::ofstream fout;
-    fout.open("rs2_driver_jitter.txt");
+    // std::ofstream fout;
+    // fout.open("rs2_driver_jitter.txt");
 
     while (ros::ok())
     {
@@ -367,8 +407,8 @@ int main(int argc, char * argv[]) try
         static double min_duration = 1, max_duration = 0 , moving_avg_duration = 0.0;
         static ros::Time last_stamp = ros::Time(0);
 
-        std::unique_lock<std::mutex> lk(stereo_frame.inProcess);
-        auto ret = stereo_frame.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
+        std::unique_lock<std::mutex> lk(*(ir_frame.inProcess));
+        auto ret = ir_frame.cv.wait_for(lk,std::chrono::seconds(1)); // with ~0.03ms delay
 
         if (ret == std::cv_status::timeout){
             ROS_ERROR("Realsense: Wait timeout for new frame arrival. Exiting");
@@ -376,14 +416,17 @@ int main(int argc, char * argv[]) try
             break;
         }
         
-        if (frame_idx != stereo_frame.seq)
+        if (frame_idx != ir_frame.seq)
         {   
+            
             // Update the window with new data
             //cv::imshow(window_name_l, stereo_frame.left);
             //cv::imshow(window_name_r, stereo_frame.right);
 
             ros::Time sensor_timestamp; 
-            sensor_timestamp.fromNSec(stereo_frame.t);
+            sensor_timestamp.fromNSec(ir_frame.t);
+
+            
 
             ////// Report Jitter /////////////
 
@@ -416,17 +459,19 @@ int main(int argc, char * argv[]) try
 
             
 
-            exposureCtl.calcHistogram(stereo_frame.left,exposure,gain);
+            
 
-            if (!auto_exposure_custom && auto_exposure_custom && brighten_dark_image)
+            exposureCtl.calcHistogram(ir_frame.left,ir_frame.param.exposure,ir_frame.param.gain);
+
+            if (!ir_frame.param.auto_exposure_custom && ir_frame.param.auto_exposure_custom && ir_frame.param.brighten_dark_image)
             {
                 int min, max;
                 exposureCtl.getIntensityRange(min,max);
                 // ROS_INFO_STREAM_THROTTLE(1,"min=" << min  << ",max=" << max);
-                scaleFrames(stereo_frame.left, stereo_frame.right, min, max);
+                scaleFrames(ir_frame.left, ir_frame.right, min, max);
             }
 
-            pub.publish(stereo_frame.left, stereo_frame.right, _cameraInfo_left, _cameraInfo_right, sensor_timestamp, stereo_frame.seq);
+            ir_frame.pub->publish(ir_frame.left, ir_frame.right, ir_frame.cameraInfo_left, ir_frame.cameraInfo_right, sensor_timestamp, ir_frame.seq);
 
             int meanLux = exposureCtl.EstimateMeanLuminance();
             // if (_visualisation_on)
@@ -435,49 +480,49 @@ int main(int argc, char * argv[]) try
             // publish statistics
             rs2_ros::CameraStats stats_msg;
             stats_msg.header.stamp = sensor_timestamp;
-            stats_msg.exposure = exposure;
-            stats_msg.gain = gain;
+            stats_msg.exposure = ir_frame.param.exposure;
+            stats_msg.gain = ir_frame.param.gain;
             stats_msg.meanLux = meanLux;
             _camstats_pub.publish(stats_msg);
 
-            if (!auto_exposure_internal && auto_exposure_custom && stereo_frame.seq%2) // only process half of the frames, give some delays
+            if (!ir_frame.param.auto_exposure_internal && ir_frame.param.auto_exposure_custom && ir_frame.seq%2) // only process half of the frames, give some delays
             {
-                int exposure_target = exposure;
-                int gain_target = gain;
+                int exposure_target = ir_frame.param.exposure;
+                int gain_target = ir_frame.param.gain;
 
-                if (meanLux < target_mean - dead_region) // image too dark
+                if (meanLux < ir_frame.param.target_mean - ir_frame.param.dead_region) // image too dark
                 {
-                    int margin = (target_mean - dead_region) - meanLux;
+                    int margin = (ir_frame.param.target_mean - ir_frame.param.dead_region) - meanLux;
                     // Consider Exposure first
-                    if (exposure < max_exposure)
+                    if (ir_frame.param.exposure < max_exposure)
                     {
-                        double calc_exposure = (margin/256.0 * exposure_change_rate + 1)*exposure;
+                        double calc_exposure = (margin/256.0 * ir_frame.param.exposure_change_rate + 1)*ir_frame.param.exposure;
                         exposure_target = std::min(max_exposure, (int)calc_exposure );
                     }
-                    else if(gain  <  max_gain)
+                    else if(ir_frame.param.gain  <  max_gain)
                     {
-                        gain_target = std::min(max_gain, gain + 2*margin);
+                        gain_target = std::min(max_gain, ir_frame.param.gain + 2*margin);
                     }
-                }else if (meanLux > target_mean + dead_region) // image too bight
+                }else if (meanLux > ir_frame.param.target_mean + ir_frame.param.dead_region) // image too bight
                 {
-                    int margin = meanLux - (target_mean + dead_region);
+                    int margin = meanLux - (ir_frame.param.target_mean + ir_frame.param.dead_region);
                     // Consider Gain first
-                    if (gain > 160 /*good default*/)
+                    if (ir_frame.param.gain > 160 /*good default*/)
                     {
-                        gain_target= std::max(160, gain - 2*margin);
+                        gain_target= std::max(160, ir_frame.param.gain - 2*margin);
                     }
-                    else if(exposure > 8000 /*good default*/)
+                    else if(ir_frame.param.exposure > 8000 /*good default*/)
                     {
-                        double calc_exposure = (-margin/256.0 * exposure_change_rate + 1)*exposure;
+                        double calc_exposure = (-margin/256.0 * ir_frame.param.exposure_change_rate + 1)*ir_frame.param.exposure;
                         exposure_target = std::max(8000, (int)calc_exposure );
                     }
-                    else if (gain > min_gain)
+                    else if (ir_frame.param.gain > min_gain)
                     {
-                        gain_target = std::max(min_gain, gain - 2*margin);
+                        gain_target = std::max(min_gain, ir_frame.param.gain - 2*margin);
                     }
-                    else if (exposure > min_exposure)
+                    else if (ir_frame.param.exposure > min_exposure)
                     {
-                        double calc_exposure = (-margin/256.0 * exposure_change_rate + 1)*exposure;
+                        double calc_exposure = (-margin/256.0 * ir_frame.param.exposure_change_rate + 1)*ir_frame.param.exposure;
                         exposure_target = std::max(min_exposure, (int)calc_exposure);
                         
                     }
@@ -486,8 +531,8 @@ int main(int argc, char * argv[]) try
                 // detect big jump
                 const double exposure_jump = 0.5;
                 const double gain_jump = 0.5;
-                if ( std::abs(exposure_target - exposure)/ (double)exposure > exposure_jump 
-                        || std::abs(gain_target - gain) / (double)gain >  gain_jump )
+                if ( std::abs(exposure_target - ir_frame.param.exposure)/ (double)ir_frame.param.exposure > exposure_jump 
+                        || std::abs(gain_target - ir_frame.param.gain) / (double)ir_frame.param.gain >  gain_jump )
                 {
                     const double speed = 0.5; // 0 to 1
                     settingFilter.expo = exposure_target*speed + settingFilter.expo*(1-speed);
@@ -505,16 +550,16 @@ int main(int argc, char * argv[]) try
                 settingFilter.gain = std::round(settingFilter.gain/step_gain)*step_gain;
                 
 
-                if (settingFilter.expo != exposure)
+                if (settingFilter.expo != ir_frame.param.exposure)
                 {
-                    exposure = settingFilter.expo;
-                    sys->setOption(RS2_OPTION_EXPOSURE,exposure);
+                    ir_frame.param.exposure = settingFilter.expo;
+                    sys->setOption(RS2_OPTION_EXPOSURE,ir_frame.param.exposure);
                 }
 
-                if (settingFilter.gain != gain)
+                if (settingFilter.gain != ir_frame.param.gain)
                 {
-                    gain = settingFilter.gain;
-                    sys->setOption(RS2_OPTION_GAIN,gain);
+                    ir_frame.param.gain = settingFilter.gain;
+                    sys->setOption(RS2_OPTION_GAIN,ir_frame.param.gain);
                 }
 
                 // std::cout << "exposure: " << exposure << ", gain= " << gain << std::endl;
@@ -522,20 +567,20 @@ int main(int argc, char * argv[]) try
             }
 
             //cvWaitKey(1); // ~15ms
-            frame_idx = stereo_frame.seq;
+            frame_idx = ir_frame.seq;
 
             total_count++;
         }
         lk.unlock();
         // ros::spinOnce();
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     std::cout << "Shutting Down Signal Received..." << std::endl;
     delete sys;
 
-    std::cout << "Writing to file..." << std::endl;
-    fout << "jitter-in-millisecond-reference-to-uvc-clock" << std::endl << streamout.str();
-    fout.close();
+    // std::cout << "Writing to file..." << std::endl;
+    // fout << "jitter-in-millisecond-reference-to-uvc-clock" << std::endl << streamout.str();
+    // fout.close();
 
     if (error_exit)
         exit(-1);

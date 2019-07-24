@@ -55,26 +55,69 @@ std::string get_sensor_name(const rs2::sensor& sensor)
 // class member functions
 ////////////////////////////////
 
-StereoDriver::StereoDriver(std::string dev_name_str, int laser_power) : _dev_name_str(dev_name_str), _laser_power(laser_power) //, _isStreaming(false)
+std::map<std::string, std::string> StereoDriver::getDeviceList(std::string target_device_name)
+{
+    std::cout << "Getting device list for target: " << target_device_name << std::endl;
+    auto devices =  _ctx.query_devices();
+
+    std::map<std::string, std::string> ret;
+    for (rs2::device device : devices)
+    {
+        const std::string name = device.get_info(RS2_CAMERA_INFO_NAME);
+
+        if (target_device_name.empty() || name.find(target_device_name) != std::string::npos)
+            ret.insert( std::pair<std::string, std::string> (name, device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)));
+    }
+
+    return ret;
+}
+
+// std::vector<std::string> StereoDriver::getSNfromName(std::string target_device_name)
+// {
+//     auto device_list = StereoDriver::getDeviceList();
+//     std::vector<std::string> sn;
+//     std::cout << "Listing Plugged-in Devices... " << std::endl;
+//     for (auto& device : device_list)
+//     {
+//         std::cout << device.first << std::endl;
+//         if (device.first.find(target_device_name) != std::string::npos)
+//         {
+//             sn.push_back(device.second);
+//             break;
+//         }     
+//     }
+    
+//     return sn;
+// }
+
+StereoDriver::StereoDriver(std::string dev_sn_str) : _dev_sn_str(dev_sn_str)
 {
     // High CPU usage issue https://github.com/IntelRealSense/librealsense/issues/2037
-    init();
-    _pipe = new rs2::pipeline(_ctx); // Jun 2019: This line has to be called after init(), otherwise T265 will not be detected
 
+    if (init())
+    {
+        setOption(RS2_OPTION_LASER_POWER,0);
+        _pipe = new rs2::pipeline(_ctx); // Jun 2019: This line has to be called after init(), otherwise T265 will not be detected
+    }      
+    else
+    {
+        std::cerr << "StereoDriver() constructor for device sn: " << dev_sn_str << " failed." << std::endl;
+        exit(-1);
+    }
     // _cblist_stereo.clear();
 }
 
 StereoDriver::~StereoDriver()
 {
-    stopStereoPipe();
+    stopPipe();
     delete _dev;
     delete _pipe;
     std::cout << "Stereo driver stopped..." << std::endl;
 }
 
-void StereoDriver::init()
+// Initialise using the serial number
+bool StereoDriver::init()
 {
-    std::cout  << "init()" << std::endl;
     // First, create a rs2::context.
     // The context represents the current platform with respect to connected devices
     rs2::device selected_device;
@@ -86,15 +129,7 @@ void StereoDriver::init()
     if (devices.size() == 0)
     {
         std::cerr << "No device connected, please connect a RealSense device" << std::endl;
-
-        //To help with the boilerplate code of waiting for a device to connect
-        //The SDK provides the rs2::device_hub class
-        // rs2::device_hub device_hub(ctx);
-
-        //Using the device_hub we can block the program until a device connects
-        // selected_device = device_hub.wait_for_device();
-
-        exit(-1);
+        return false;
     }
     else
     {
@@ -107,14 +142,16 @@ void StereoDriver::init()
         bool rs2_found = false;
         for (rs2::device device : devices)
         {
-            std::string name = device.get_info(RS2_CAMERA_INFO_NAME); // get_device_name(device);
-            std::cout << "  " << index << " : " << name << std::endl;
+            const std::string name = device.get_info(RS2_CAMERA_INFO_NAME);
+            const std::string sn = device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+            std::cout << "  " << index << " : " << name << " (" << sn << ")" << std::endl;
 
-            if (!rs2_found && name.find(_dev_name_str) != std::string::npos)
+            if (_dev_sn_str == sn)
             {
-                std::cout << "found RealSense Camera: " << name << std::endl;
+                std::cout << "found RealSense Camera: " << name << " (" << sn << ")" << std::endl;
                 _dev_name_str = name;
                 rs2_found =  true;
+                break;
             }
 
             if(!rs2_found)
@@ -124,12 +161,11 @@ void StereoDriver::init()
         if (!rs2_found) // no realsense device present
         {
             std::cerr << "No RealSense camera was found, exiting..." << std::endl;
-            exit(1);
+            return false;
         }
 
         // Update the selected device
         selected_device = devices[index];
-        std::cout << "Device Serial Number: #" << selected_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER) << std::endl;
     }
 
     std::cout << "=======================================" << std::endl;
@@ -161,20 +197,24 @@ void StereoDriver::init()
     if (!found_ir_stereo && !found_fisheye_stereo)
     {
         std::cerr << "No Stereo Sensor Found, Quitting" << std::endl;
-        exit(-1);
+        return false;
     }
 
     // auto stereo_sensor;
     if (found_ir_stereo >= 0){ // D400
         _stereo = new auto(sensors[found_ir_stereo]); // new auto is needed, otherwise segmentation fault
-        _stereo->set_option(RS2_OPTION_LASER_POWER,_laser_power);
-        std::cout << "set laser power = " << _stereo->get_option(RS2_OPTION_LASER_POWER) << std::endl;
+        _stereo_stream_type = RS2_STREAM_INFRARED;
     }
     else if (found_fisheye_stereo >= 0)
+    {
         _stereo = new auto(sensors[found_fisheye_stereo]); // T265
+        _stereo_stream_type = RS2_STREAM_FISHEYE;
+    }
 
     std::cout << "Stereo Sensor initialised successfully!" << std::endl;
     std::cout << "=======================================" << std::endl << std::endl;
+
+    return true;
 }
 
 void StereoDriver::enablePoseMotionStream(){
@@ -206,6 +246,15 @@ void StereoDriver::enablePoseMotionStream(){
         }
     }
     
+}
+
+void StereoDriver::enableStereoStream(int width, int height, int hz, rs2_format stream_format)
+{
+
+    _cfg.enable_stream(_stereo_stream_type,1, width, height, stream_format, hz); // left
+    _cfg.enable_stream(_stereo_stream_type,2, width, height, stream_format, hz); // right
+    std::cout << "Enabled Both " << rs2_stream_to_string(_stereo_stream_type) << " Stream" << std::endl;
+    std::cout << "Stereo Stream Format: " << rs2_format_to_string(stream_format) << std::endl;
 }
 
 std::vector<std::string> tokenize_floats(std::string input, char separator){
@@ -247,32 +296,15 @@ void print(const rs2_extrinsics& extrinsics)
     std::cout << ss.str() << std::endl << std::endl;
 }
 
-void StereoDriver::startStereoPipe(int width, int height, int hz, rs2_format stream_format)
+void StereoDriver::startPipe()
 {
-
-    _cfg.enable_device(_dev->get_info(RS2_CAMERA_INFO_SERIAL_NUMBER)); // This is needed for multi cam setup
-
-    auto available_streams = _stereo->get_stream_profiles();
-
-    auto find_result = std::find_if(available_streams.begin(), available_streams.end(), [&](rs2::stream_profile& s) {return s.stream_type() == RS2_STREAM_INFRARED || s.stream_type() == RS2_STREAM_FISHEYE;});
-
-    assert(find_result != available_streams.end());
-
-    auto stream_type = find_result->stream_type();
-
-    _cfg.enable_stream(stream_type,1, width, height, stream_format, hz); // left
-    _cfg.enable_stream(stream_type,2, width, height, stream_format, hz); // right
-    std::cout << "Enabled Both " << rs2_stream_to_string(stream_type) << " Stream" << std::endl;
-    std::cout << "Stereo Stream Format: " << rs2_format_to_string(stream_format) << std::endl;
-
-    std::cout  << "Starting Pipe with " << width << "x" << height << " " << stream_format << " @ " << hz << "Hz" << std::endl;
     // Start streaming with default recommended configuration
 
     rs2::pipeline_profile selection = _pipe->start(_cfg, std::bind(&StereoDriver::frameCallback,this, std::placeholders::_1));
     _profile = new auto(selection);
 
-    auto stream_profile_left = _profile->get_stream(stream_type,1);
-    auto stream_profile_right = _profile->get_stream(stream_type,2);
+    auto stream_profile_left = _profile->get_stream(_stereo_stream_type,1);
+    auto stream_profile_right = _profile->get_stream(_stereo_stream_type,2);
     auto video_profile_left = stream_profile_left.as<rs2::video_stream_profile>();
     
 
@@ -288,7 +320,8 @@ void StereoDriver::startStereoPipe(int width, int height, int hz, rs2_format str
                 << ", height= " << _intrinsics.height << std::endl
                 << "ppx= " << _intrinsics.ppx // principal point
                 << ", ppy= " << _intrinsics.ppy << std::endl
-                << "model= " << rs2_distortion_to_string(_intrinsics.model) << std::endl;
+                << "model= " << rs2_distortion_to_string(_intrinsics.model) << std::endl
+                << "hz= " << _hz << std::endl;
 
     _extrinsics_left_to_right = stream_profile_left.get_extrinsics_to(stream_profile_right); // baseline 55mm?
 
@@ -310,21 +343,6 @@ void StereoDriver::startStereoPipe(int width, int height, int hz, rs2_format str
     std::cout << std::endl;
 
     std::cout << "baseline: " << _baseline << std::endl;
-
-    if (width != _intrinsics.width || height != _intrinsics.height || _hz != hz)
-    {
-        std::cerr << "ERROR: intrinsics dimensions mismatch requested resolutions" << std::endl;
-        std::cerr << "width: " << width << " --> " << _intrinsics.width << std::endl;
-        std::cerr << "height: " << height << " --> " << _intrinsics.height << std::endl;
-        std::cerr << "frame rate: " << hz << " --> " << _hz << std::endl;
-        exit(1);
-    }
-
-    // _isStreaming = true;
-    // _thread = std::thread(&StereoDriver::process,this);
-
-    std::cout << "Pipeline Streaming Starts with resolution of [" << width <<"*" << height << "]@" << hz << "Hz" << std::endl;
-    std::cout << "=======================================" << std::endl << std::endl;
 }
 
 rs2_intrinsics StereoDriver::get_intrinsics() const
@@ -342,7 +360,7 @@ float StereoDriver::get_baseline() const
     return _baseline;
 }
 
-void StereoDriver::stopStereoPipe()
+void StereoDriver::stopPipe()
 {   
     // if (!_isStreaming)
     //     return;

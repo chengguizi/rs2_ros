@@ -49,7 +49,7 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
         
         stereo_frame.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
         stereo_frame.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
-        stereo_frame.t = data.mid_shutter_time_estimate - stereo_frame.t_base;
+        // stereo_frame.t = data.mid_shutter_time_estimate - stereo_frame.t_base;
 
         std::cout << stereo_frame.t << std::endl;
         stereo_frame.inProcess.unlock();
@@ -62,7 +62,25 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
 
 int main() try
 {
-    StereoDriver* sys = new StereoDriver("RealSense T265");
+    const std::string target_device_name = "Intel RealSense T265";
+    auto device_list = StereoDriver::getDeviceList();
+    std::string sn;
+    for (auto& device : device_list)
+    {
+        // std::cout << device.first << std::endl;
+        if (device.first == target_device_name)
+        {
+            sn = device.second;
+            break;
+        }     
+    }
+    if (sn.empty())
+    {
+        std::cerr << target_device_name << " is not found, quitting." << std::endl;
+        exit(-1);
+    }
+
+    StereoDriver* sys = new StereoDriver(sn);
 
     sys->setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
     // for more options, please refer rs_option.h
@@ -77,7 +95,8 @@ int main() try
     sys->registerCallback(stereoImageCallback);
 
     sys->enablePoseMotionStream();
-    sys->startStereoPipe(848, 800, 30, RS2_FORMAT_Y8);
+    sys->enableStereoStream();
+    sys->startPipe();
 
     uint frame_idx = 0;
     while (cv::waitKey(1) < 0)
@@ -96,7 +115,7 @@ int main() try
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
-    sys->stopStereoPipe();
+    sys->stopPipe();
 
     std::cout << "main() exits" << std::endl;
 

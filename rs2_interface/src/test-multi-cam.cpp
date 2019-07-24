@@ -71,13 +71,17 @@ int main() try
 {
     using namespace std::placeholders;
 
-    StereoDriver* sys2 = new StereoDriver("RealSense T2");
-    StereoDriver* sys = new StereoDriver("RealSense D4");
-    
+    auto sys_sn = StereoDriver::getDeviceList("RealSense D4");
+    auto sys2_sn = StereoDriver::getDeviceList("RealSense T2");
+    StereoDriver* sys = new StereoDriver(sys_sn.begin()->second);
+    StereoDriver* sys2 = new StereoDriver(sys2_sn.begin()->second);
 
     // for more options, please refer rs_option.h
-    sys->setOption(RS2_OPTION_EXPOSURE,10000); // in usec
-    sys->setOption(RS2_OPTION_GAIN,16);
+    // sys->setOption(RS2_OPTION_EXPOSURE,10000); // in usec
+    // sys->setOption(RS2_OPTION_GAIN,16);
+
+    sys->enableAE(2200);
+    sys2->enableAE(2200);
 
     const auto window_name_ir_l = "irframe Image Left";
     const auto window_name_ir_r = "irframe Image Right";
@@ -95,8 +99,10 @@ int main() try
     sys->registerCallback(std::bind(stereoImageCallback, _1, std::ref(irframe)));
     sys2->registerCallback(std::bind(stereoImageCallback, _1, std::ref(fisheyeframe)));
 
-    sys->startStereoPipe(1280, 720, 30);
-    sys2->startStereoPipe(848, 800, 30, RS2_FORMAT_Y8);
+    sys->enableStereoStream(1280, 720, 30);
+    sys->startPipe();
+    sys2->enableStereoStream(848, 800, 30, RS2_FORMAT_Y8);
+    sys2->startPipe();
 
     uint irframe_idx = 0;
     uint fisheyeframe_idx = 0;
@@ -127,7 +133,7 @@ int main() try
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
-    sys->stopStereoPipe();
+    sys->stopPipe();
 
     std::cout << "main() exits" << std::endl;
 
