@@ -300,6 +300,11 @@ void print(const rs2_extrinsics& extrinsics)
 
 void StereoDriver::startPipe()
 {
+
+    // set to the specific SN device
+
+    _cfg.enable_device(_dev_sn_str);
+
     // Start streaming with default recommended configuration
 
     rs2::pipeline_profile selection = _pipe->start(_cfg, std::bind(&StereoDriver::frameCallback,this, std::placeholders::_1));
