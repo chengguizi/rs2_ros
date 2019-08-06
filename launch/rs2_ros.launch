@@ -1,7 +1,6 @@
 <launch>
-    <node enable-coredumps="false" pkg="rs2_ros" type="rs2_ros" name="stereo" output="screen">
-        <param name="sensor_name" value="RealSense" />
-
+    <node enable-coredumps="false" pkg="rs2_ros" type="rs2_ros" name="rs2_ros" output="screen" launch-prefix="xterm -e gdb --args">
+        <rosparam file="$(find rs2_ros)/launch/device_list.yaml"/>
         <rosparam file="$(find rs2_ros)/launch/param_d400.yaml" ns="d400"/>
         <rosparam file="$(find rs2_ros)/launch/param_t265.yaml" ns="t265"/>
     </node>

@@ -18,14 +18,17 @@
 
 #include <map>
 
+//debug
+// #include <cassert>
+
 class StereoDriver {
 
 public:
 
     struct StereoDataType{
         uint64_t mid_shutter_time_estimate; // Generally need not be used, for reference only
-        void* left;
-        void* right;
+        char* left;
+        char* right;
         int width;
         int height;
         double time_left; // System Time Domain
@@ -59,11 +62,11 @@ public:
         float gx,gy,gz; // gyroscope
     };
 
-    typedef std::function<void(StereoDataType)> callbackStereo; 
-    typedef std::function<void(PoseDataType)> callbackPose; 
-    typedef std::function<void(GyroDataType)> callbackGyro; 
-    typedef std::function<void(AccelDataType)> callbackAccel;
-    typedef std::function<void(SyncedIMUDataType)> callbackIMU;
+    typedef std::function<void(const StereoDataType&)> callbackStereo; 
+    typedef std::function<void(const PoseDataType&)> callbackPose; 
+    typedef std::function<void(const GyroDataType&)> callbackGyro; 
+    typedef std::function<void(const AccelDataType&)> callbackAccel;
+    typedef std::function<void(const SyncedIMUDataType&)> callbackIMU;
 
                         // time since epoch, left & right image data, width, height, hardware time left & right, hardware sequence left & right
     static std::map<std::string, std::string> getDeviceList(std::string target_device_name = std::string());
@@ -95,7 +98,7 @@ private:
     struct IMUBuffer{
         const static uint buffer_size = 256; // size of char
         GyroDataType gyro[buffer_size];
-        AccelDataType last_accel;
+        AccelDataType last_accel, curr_accel;
 
         unsigned char begin = 0; // at the position of the first data
         unsigned char end = 0; // one position pass the last data
@@ -104,41 +107,55 @@ private:
             last_accel.seq = 0;
         }
 
-        void pushGyro(GyroDataType data){
+        void pushGyro(GyroDataType data, std::function<void(const SyncedIMUDataType&)> cb){
+            static uint64_t accel_synced = 0;
             gyro[end++] = data;
-        }
-        void update(AccelDataType accel, std::function<void(const SyncedIMUDataType&)> cb){
 
-            if (last_accel.seq != 0){ // it is properly initialised 
-                // publish all imu data in the buffer
-
-                // std::cout  << "begin = " << gyro[begin].seq << ", end = " << gyro[end-1].seq << std::endl;
-                double duration = accel.timestamp - last_accel.timestamp;
-
-                double grad_x = (accel.x - last_accel.x) / duration;
-                double grad_y = (accel.y - last_accel.y) / duration;
-                double grad_z = (accel.z - last_accel.z) / duration;
-                
-                // last_accel.timestamp is always older than the gyro[begin]
-                for(; gyro[begin].timestamp < accel.timestamp && begin != end ; begin++){ 
-                    double lapse = (gyro[begin].timestamp - last_accel.timestamp);
-
-                    SyncedIMUDataType imu_data;
-                    imu_data.timestamp = gyro[begin].timestamp;
-                    imu_data.timestamp = gyro[begin].seq;
-                    imu_data.gx = gyro[begin].x;
-                    imu_data.gy = gyro[begin].y;
-                    imu_data.gz = gyro[begin].z;
-
-                    imu_data.ax = lapse * grad_x + last_accel.x;
-                    imu_data.ay = lapse * grad_y + last_accel.y;
-                    imu_data.az = lapse * grad_z + last_accel.z;
-
-                    cb(imu_data);
-                }
+            if (accel_synced != last_accel.seq && gyro[end-1].timestamp > curr_accel.timestamp) // gyro readings are at least up-to-date with accel readings
+            {
+                syncAndPush(cb);
+                accel_synced = last_accel.seq;
             }
+        }
+        void pushAccel(AccelDataType accel){
 
-            last_accel = accel;
+            last_accel = curr_accel;
+            curr_accel = accel;
+        }
+
+        void syncAndPush(std::function<void(const SyncedIMUDataType&)> cb){
+            // publish all imu data in the buffer
+
+            // std::cout  << "begin = " << gyro[begin].seq << ", end = " << gyro[end-1].seq << std::endl;
+            double duration = curr_accel.timestamp - last_accel.timestamp;
+
+            // assert(duration != 0.0);
+
+            double grad_x = (curr_accel.x - last_accel.x) / duration;
+            double grad_y = (curr_accel.y - last_accel.y) / duration;
+            double grad_z = (curr_accel.z - last_accel.z) / duration;
+            
+            // last_accel.timestamp is always older than the gyro[begin]
+            for(; begin != end && gyro[begin].timestamp <= curr_accel.timestamp ; begin++){ 
+                double lapse = (gyro[begin].timestamp - last_accel.timestamp);
+
+                // std::cout << std::setprecision(15) << gyro[begin].timestamp << std::endl << last_accel.timestamp << std::endl << gyro[end - 1].timestamp << std::endl << std::endl;
+                if (lapse < 0)
+                    continue;
+
+                SyncedIMUDataType imu_data;
+                imu_data.timestamp = gyro[begin].timestamp;
+                imu_data.seq = gyro[begin].seq;
+                imu_data.gx = gyro[begin].x;
+                imu_data.gy = gyro[begin].y;
+                imu_data.gz = gyro[begin].z;
+
+                imu_data.ax = lapse * grad_x + last_accel.x;
+                imu_data.ay = lapse * grad_y + last_accel.y;
+                imu_data.az = lapse * grad_z + last_accel.z;
+
+                cb(imu_data);
+            }
         }
     }imuBuffer;
 

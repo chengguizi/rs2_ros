@@ -11,19 +11,33 @@
 class ExposureControl{
 
 public:
-
-    ExposureControl(double a_min, double a_max, double c) : a_min_(a_min), a_max_(a_max), c_(c){
-        std::cout  << "Init Exposurecontrol with a_min = " << a_min_ << ", a_max = " << a_max << ", c = " << c_ << std::endl;
+    struct Param{
+        int exposure_max, exposure_min;
+        int exposure_step;
+        int gain_max, gain_min;
+        int gain_step;
+        double exposure_change_rate;
+        int exposure_target_mean;
+        int exposure_dead_region;
+        double a_min, a_max; // range of suppression
+        double c; // centre point of the parabola
     };
 
-    void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256, bool normalisedtoOne = true);
-    int EstimateMeanLuminance();
+    ExposureControl(const Param& param) : param(param) {};
+
+    void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256);
+    int EstimateMeanLuminance(); // this requires calcHistogram()
+    void updateExposureGain(const int& MeanLuminance, const int& exposure_usec,const int& gain, int& exposure_usec_next, int& gain_next);
+
     const cv::Mat getHist(){return hist;}
     void getIntensityRange(int &min, int &max){min = intensity_min; max = intensity_max;}
     void showHistogram(int exposure_usec = 0, int gain = 0);
 
 
 private:
+
+    Param param;
+
     const int p_width = 16;
 
     int img_width, img_height;
@@ -43,8 +57,6 @@ private:
         float value;
     };
     Peak peak1, peak2; // peak1 darker than peak2
-
-    double a_min_, a_max_, c_; // parameter
 
     struct Curve{
         double a;

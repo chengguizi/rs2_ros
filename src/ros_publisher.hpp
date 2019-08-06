@@ -37,7 +37,7 @@ class IMUPublisher
         IMUPublisher();
         IMUPublisher(const ros::NodeHandle& nh);
 
-    void publish(float gyro[3], float accel[3], ros::Time timestamp, uint64_t seq);
+    void publish(const float gyro[3], const float accel[3], const ros::Time timestamp, const uint64_t seq);
 
     private:
         ros::NodeHandle _nh;

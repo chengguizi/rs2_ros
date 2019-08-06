@@ -13,7 +13,7 @@
 #include <ros/ros.h>
 
 
-void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize, bool normalisedtoOne)
+void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize)
 {
     this->histSize = histSize;
     cv::calcHist(&img,1 /*num of images*/, 0 /*channels*/, cv::Mat() /*mask*/, 
@@ -84,10 +84,10 @@ void ExposureControl::calcHistogram(cv::Mat img, int exposure_usec, int gain, in
     // const double c = 0.6;
     // const double a_min = 0.15;
     // const double a_max = 0.8;
-    W_dark.c = W_bright.c = c_; // arbituary constant
+    W_dark.c = W_bright.c = param.c; // arbituary constant
 
-    W_dark.a = a_max_ - bkBrightness*(a_max_- a_min_);
-    W_bright.a = a_min_ + bkBrightness*(a_max_- a_min_);
+    W_dark.a = param.a_max - bkBrightness*(param.a_max- param.a_min);
+    W_bright.a = param.a_min + bkBrightness*(param.a_max- param.a_min);
 
     W_dark.b = (1 - W_dark.a) / std::pow(1 - W_dark.c, 2.0);
     W_bright.b = (1 - W_bright.a) / std::pow(1 - W_bright.c, 2.0);
@@ -208,6 +208,48 @@ int ExposureControl::EstimateMeanLuminance()
     ROS_INFO_STREAM_THROTTLE(30, "MeanLuminance: " << (int)MeanLuminance);
 
     return (int)MeanLuminance;
+}
+
+void ExposureControl::updateExposureGain(const int& MeanLuminance, const int& exposure_usec,const int& gain, int& exposure_usec_next, int& gain_next)
+{
+
+    if (MeanLuminance < param.exposure_target_mean - param.exposure_dead_region) // image too dark
+    {
+        int margin = (param.exposure_target_mean - param.exposure_dead_region) - MeanLuminance;
+        // Consider Exposure first
+        if (exposure_usec < param.exposure_max)
+        {
+            double calc_exposure = (margin/256.0 * param.exposure_change_rate + 1)*exposure_usec;
+            exposure_usec_next = std::min(param.exposure_max, (int)calc_exposure );
+        }
+        else if(gain  <  param.gain_max)
+        {
+            gain_next = std::min(param.gain_max, gain + 2*margin);
+        }
+    }else if (MeanLuminance > param.exposure_target_mean + param.exposure_dead_region) // image too bight
+    {
+        int margin = MeanLuminance - (param.exposure_target_mean + param.exposure_dead_region);
+        // Consider Gain first
+        if (gain > 160 /*good default*/)
+        {
+            gain_next= std::max(160, gain - 2*margin);
+        }
+        else if(exposure_usec > 8000 /*good default*/)
+        {
+            double calc_exposure = (-margin/256.0 * param.exposure_change_rate + 1)*exposure_usec;
+            exposure_usec_next = std::max(8000, (int)calc_exposure );
+        }
+        else if (gain > param.gain_min)
+        {
+            gain_next = std::max(param.gain_min, gain - 2*margin);
+        }
+        else if (exposure_usec > param.exposure_min)
+        {
+            double calc_exposure = (-margin/256.0 * param.exposure_change_rate + 1)*exposure_usec;
+            exposure_usec_next = std::max(param.exposure_min, (int)calc_exposure);
+            
+        }
+    }
 }
 
 void ExposureControl::showHistogram(int exposure_usec, int gain)

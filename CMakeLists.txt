@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON) # prevent fallback
 
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release"
     "MinSizeRel" "RelWithDebInfo")
 endif()
@@ -30,7 +30,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3 REQUIRED)
 
 add_message_files(
   FILES
@@ -54,6 +54,7 @@ catkin_package(
 
 add_executable(rs2_ros 
   src/main.cpp
+  src/camera_manager.cpp
   src/ros_publisher.cpp
   src/exposure_ctl.cpp
 )
@@ -62,6 +63,7 @@ add_executable(rs2_ros
 #   src/rs2_fpga_bridge.cpp
 #   src/exposure_ctl.cpp
 # )
+
 include_directories(${catkin_INCLUDE_DIRS}) # to find ros/ros.h
 # alternatively and more specifically:
 # target_include_directories(rs2_ros

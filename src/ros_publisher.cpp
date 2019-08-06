@@ -48,7 +48,7 @@ void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv,
     cv_bridge::CvImage imageLeft_bridge = cv_bridge::CvImage(header, \
                 sensor_msgs::image_encodings::MONO8, imageLeft_cv);
 
-    _pubLeft->publish(imageLeft_bridge.toImageMsg(),cameraInfoPtr_left);
+    _pubLeft->publish(imageLeft_bridge.toImageMsg(),cameraInfoPtr_left); // .toImageMsg() makes a copy of the image data
 
     // publish right image
     cv_bridge::CvImage imageRight_bridge = cv_bridge::CvImage(header, \
@@ -68,8 +68,9 @@ IMUPublisher::IMUPublisher(const ros::NodeHandle& nh) : _nh(nh)
     std::cout << "Imu Publisher initialised." << std::endl;
 }
 
-void IMUPublisher::publish(float gyro[3], float accel[3], ros::Time timestamp, uint64_t seq)
+void IMUPublisher::publish(const float gyro[3], const float accel[3], const ros::Time timestamp, const uint64_t seq)
 {
+    // std::cout << "IMUPublisher::publish" << std::endl;
     sensor_msgs::Imu data;
 
     data.header.stamp = timestamp;

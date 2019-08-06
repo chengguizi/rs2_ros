@@ -1,16 +1,13 @@
 width: 848
 height: 800
 frame_rate: 30
-exposure: 5000
-max_exposure: 12000
-auto_exposure_internal: true
-auto_exposure_custom: false
-mean_intensity_setpoint: 1800
-gain: 16
-laser_power: 0
 
-brighten_dark_image: false
-visualisation_on: false
+initial_exposure: 5000
+initial_gain: 16
+
+max_exposure: 12000
+mean_intensity_setpoint: 1800
+laser_power: 0
 
 exposure_change_rate: 1.5
 target_mean: 110

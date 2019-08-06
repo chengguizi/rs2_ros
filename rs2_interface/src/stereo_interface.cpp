@@ -94,6 +94,8 @@ StereoDriver::StereoDriver(std::string dev_sn_str) : _dev_sn_str(dev_sn_str)
 {
     // High CPU usage issue https://github.com/IntelRealSense/librealsense/issues/2037
 
+    std::cout << "Driver for SN: " << dev_sn_str << std::endl;
+
     if (init())
     {
         setOption(RS2_OPTION_LASER_POWER,0);
@@ -452,10 +454,10 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         // std::cout << delay_uvc_to_frontend << "  " << delay_uvc_to_frontend2 << std::endl;
 
 
-        void* irleft = new char[w*h];
+        char* irleft = new char[w*h];
         memcpy(irleft,frame_left.get_data(),w*h);
 
-        void* irright = new char[w*h];
+        char* irright = new char[w*h];
         memcpy(irright,frame_right.get_data(),w*h);
 
         StereoDataType data = {mid_shutter_time_estimate, irleft, irright, w, h, time_left, time_right, seq_left, seq_right};
@@ -499,7 +501,7 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         if ( stream_type == RS2_STREAM_GYRO){
             num_gyro_frames++;
             GyroDataType data = {meta_timestamp, meta_seq, data_motion.x, data_motion.y, data_motion.z};
-            imuBuffer.pushGyro(data);
+            imuBuffer.pushGyro(data, std::bind(&StereoDriver::imuCallback, this, std::placeholders::_1));
             for (auto& cb : _cblist_gyro){
                 cb(data);
             }
@@ -514,7 +516,7 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         }else if (stream_type == RS2_STREAM_ACCEL){
             num_accel_frames++;
             AccelDataType data = {meta_timestamp, meta_seq, data_motion.x, data_motion.y, data_motion.z};
-            imuBuffer.update(data, std::bind(&StereoDriver::imuCallback, this, std::placeholders::_1));
+            imuBuffer.pushAccel(data);
             for (auto& cb : _cblist_accel){
                 cb(data);
             }
@@ -535,6 +537,7 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
 
 void StereoDriver::imuCallback(const SyncedIMUDataType& data)
 {
+    
     for (auto& cb : _cblist_imu){
         cb(data);
     }

@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON) # prevent fallback
 # )
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release"
     "MinSizeRel" "RelWithDebInfo")
 endif()
@@ -22,7 +22,7 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-pg")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3 REQUIRED)
 #message(WARNING "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
 find_package(realsense2 REQUIRED)
 find_package(Threads REQUIRED)
