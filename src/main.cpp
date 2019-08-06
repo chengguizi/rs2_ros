@@ -26,7 +26,11 @@ int main(int argc, char * argv[])
         process_list.push_back(std::thread(&CameraManager::processFrame, camera.get()));
 
     for (auto& camera : camera_list)
+    {
         camera->startPipe();
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    }
+        
 
     // ros::AsyncSpinner spinner(2);
 	// spinner.start();

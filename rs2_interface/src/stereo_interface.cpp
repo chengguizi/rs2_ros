@@ -380,8 +380,6 @@ void StereoDriver::stopPipe()
 // The call back either returns as frameset (synchronised) or a single frame (unsynchronised)
 void StereoDriver::frameCallback(const rs2::frame& frame)
 {
-    static int num_stereo_frames = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
-
     std::lock_guard<std::mutex> lock(callback_stereo_mutex);
     
     // std::cout << "frameCallback()" << std::endl;

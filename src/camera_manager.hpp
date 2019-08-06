@@ -64,7 +64,9 @@ public:
 
     
     void processFrame(); // for running in an independent thread: for jitter detection, exposure control and topic publishing
-    void startPipe(){sys->startPipe();};
+    void startPipe(){
+        std::cout << param.topic_ns << ": Starting Pipe..." << std::endl;
+        sys->startPipe();};
 
 private:
     StereoDriver* sys;

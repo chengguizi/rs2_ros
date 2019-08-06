@@ -129,7 +129,6 @@ CameraManager::CameraManager(const std::string& topic_ns)
     //// Get Some Intrinsics and Extrinsics
     getCameraInfo();
 
-    frame.seq_left = 0 ; // marking the initial frame
     frame.left = nullptr;
 }
 
@@ -195,8 +194,9 @@ void CameraManager::getCameraInfo()
 
 void CameraManager::setStereoFrame(const StereoDriver::StereoDataType& frame)
 {
-    if (this->frame.seq_left == 0) 
+    if (this->frame.left == nullptr) 
         std::cout << "First Frame Received for " << param.topic_ns << std::endl;
+        
     if (inProcess.try_lock()){
 
         if (this->frame.left != nullptr){

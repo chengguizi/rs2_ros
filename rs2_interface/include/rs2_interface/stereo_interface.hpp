@@ -160,6 +160,7 @@ private:
     }imuBuffer;
 
     bool init();
+    int num_stereo_frames = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
     void frameCallback(const rs2::frame& frame);
     void imuCallback(const SyncedIMUDataType& data);
 
