@@ -196,7 +196,7 @@ void CameraManager::setStereoFrame(const StereoDriver::StereoDataType& frame)
 {
     if (this->frame.left == nullptr) 
         std::cout << "First Frame Received for " << param.topic_ns << std::endl;
-        
+
     if (inProcess.try_lock()){
 
         if (this->frame.left != nullptr){
@@ -237,8 +237,8 @@ void CameraManager::processFrame()
         auto ret = cv.wait_for(lk,std::chrono::seconds(5)); // with ~0.03ms delay, lock reacquired
         
         if (ret == std::cv_status::timeout ){
-            std::cerr << param.topic_ns << ": Wait timeout for new frame arrival. Exiting" << std::endl;
-            return;
+            std::cerr << param.topic_ns << ": Wait timeout for new frame arrival..." << std::endl;
+            continue;
         }
         auto left = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.left, cv::Mat::AUTO_STEP);
         auto right = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.right, cv::Mat::AUTO_STEP);
