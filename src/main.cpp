@@ -14,7 +14,16 @@ int main(int argc, char * argv[])
 
     for (auto& camera_ns : camera_ns_list)
     {
-        camera_list.push_back( std::unique_ptr<CameraManager>( new CameraManager(camera_ns)) );
+        std::unique_ptr<CameraManager> camera(new CameraManager(camera_ns));
+
+        if (camera->isInitialised())
+            camera_list.push_back(std::move(camera));
+        else
+        {
+            camera.reset();
+            std::cerr << "Initialise SN: " << camera_ns << " Failed" << std::endl;
+        }
+        
     }
 
 

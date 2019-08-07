@@ -73,6 +73,7 @@ public:
     // static std::vector<std::string> getSNfromName(std::string target_device_name);
     
     StereoDriver(std::string dev_sn_str = "");
+    bool isInitialised(){return initialised;};
     ~StereoDriver();
     void setOption(rs2_option option, float value);
     float getOption(rs2_option option);
@@ -159,6 +160,7 @@ private:
         }
     }imuBuffer;
 
+    bool initialised;
     bool init();
     int num_stereo_frames = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
     void frameCallback(const rs2::frame& frame);

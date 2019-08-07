@@ -55,7 +55,7 @@ void CameraParam::loadExposureControlParam(const std::string& type)
 
 }
 
-CameraManager::CameraManager(const std::string& topic_ns)
+CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
 {
     std::cout << "Creating CameraManager for " << topic_ns << std::endl;
     //// Obtain all params associated with the topic_ns
@@ -65,6 +65,13 @@ CameraManager::CameraManager(const std::string& topic_ns)
 
     //// Creating Device Driver
     sys = new StereoDriver(param.camera_sn);
+
+    if (!sys->isInitialised())
+    {
+        delete sys;
+        sys = nullptr;
+        return;
+    }
     
     //// Configure Auto Exposure
     if (param.auto_exposure_mode == "internal"){
@@ -130,6 +137,8 @@ CameraManager::CameraManager(const std::string& topic_ns)
     getCameraInfo();
 
     frame.left = nullptr;
+
+    initialised = true;
 }
 
 CameraManager::~CameraManager()

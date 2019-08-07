@@ -60,6 +60,7 @@ public:
     
     CameraManager() = delete;
     CameraManager(const std::string& topic_ns);
+    bool isInitialised(){return initialised;};
     ~CameraManager();
 
     
@@ -69,6 +70,7 @@ public:
         sys->startPipe();};
 
 private:
+    bool initialised;
     StereoDriver* sys;
     StereoCameraPublisher* pub;
     IMUPublisher* pub_imu;

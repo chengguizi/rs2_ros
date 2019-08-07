@@ -90,7 +90,7 @@ std::map<std::string, std::string> StereoDriver::getDeviceList(std::string targe
 //     return sn;
 // }
 
-StereoDriver::StereoDriver(std::string dev_sn_str) : _dev_sn_str(dev_sn_str)
+StereoDriver::StereoDriver(std::string dev_sn_str) : _dev_sn_str(dev_sn_str), initialised(false)
 {
     // High CPU usage issue https://github.com/IntelRealSense/librealsense/issues/2037
 
@@ -104,16 +104,23 @@ StereoDriver::StereoDriver(std::string dev_sn_str) : _dev_sn_str(dev_sn_str)
     else
     {
         std::cerr << "StereoDriver() constructor for device sn: " << dev_sn_str << " failed." << std::endl;
-        exit(-1);
+        return;
     }
     // _cblist_stereo.clear();
+
+    initialised = true;
 }
 
 StereoDriver::~StereoDriver()
 {
-    stopPipe();
-    delete _dev;
-    delete _pipe;
+    if (initialised)
+    {
+        stopPipe();
+        delete _pipe;
+        delete _stereo;
+        delete _dev;
+    }
+    
     std::cout << "Stereo driver stopped..." << std::endl;
 }
 
@@ -315,6 +322,10 @@ void StereoDriver::startPipe()
 
     rs2::pipeline_profile selection = _pipe->start(_cfg, std::bind(&StereoDriver::frameCallback,this, std::placeholders::_1));
     _profile = new auto(selection);
+
+    std::string active_sn = _profile->get_device().get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+
+    assert (_dev_sn_str == active_sn); // the string turned on should be the one requested
 
     auto stream_profile_left = _profile->get_stream(_stereo_stream_type,1);
     auto stream_profile_right = _profile->get_stream(_stereo_stream_type,2);
