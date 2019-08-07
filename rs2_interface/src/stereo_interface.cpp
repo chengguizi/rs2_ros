@@ -307,6 +307,12 @@ void StereoDriver::startPipe()
 
     // Start streaming with default recommended configuration
 
+    if (! _cfg.can_resolve(std::shared_ptr<rs2_pipeline>(*_pipe)) )
+    {
+        std::cerr << "startPipe(): Cannot Resolve Config for the pipe" << std::endl;
+        exit(-1);
+    }
+
     rs2::pipeline_profile selection = _pipe->start(_cfg, std::bind(&StereoDriver::frameCallback,this, std::placeholders::_1));
     _profile = new auto(selection);
 

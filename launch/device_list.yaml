@@ -1,6 +1,7 @@
 devices: # the names here are used for publisher's namespace
   - stereo
   - stereo2
+  # - stereo3
 #  - fisheye
 
 stereo: 
@@ -17,6 +18,14 @@ stereo2:
   stereo: true
   depth: false
   poseimu: true
+  auto_exposure_mode: internal
+
+stereo3:
+  type: d400 # for loading type specific yaml
+  sn: '746112061685' # D415
+  stereo: true
+  depth: false
+  poseimu: false
   auto_exposure_mode: internal
 
 fisheye: 
