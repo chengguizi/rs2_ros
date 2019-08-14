@@ -12,6 +12,8 @@
 
 #include <mutex>
 
+#include <cassert>
+
 #include "rs2_interface/stereo_interface.hpp"
 
 #include <opencv2/opencv.hpp>   // Include OpenCV API
@@ -32,12 +34,12 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
     {
         if (data.time_left != data.time_right)
             std::cerr << "ImageCallback(): stereo time sync inconsistent!" << std::endl;
-        irframe.t = data.time_left;
+        
         if (data.seq_left != data.seq_right)
             std::cerr << "ImageCallback(): stereo frame sequence sync inconsistent!" << std::endl;
-        irframe.seq = data.seq_left;
+        
 
-        if (data.seq_left == 1)
+        if (irframe.t == 0)
         {
             irframe.t_base = data.mid_shutter_time_estimate;
         }
@@ -46,6 +48,9 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
            delete[] irframe.left.data; // will cause memory leak if this is not freed
            delete[] irframe.right.data;
         }
+
+        irframe.t = data.time_left;
+        irframe.seq = data.seq_left;
         
         irframe.left = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.left, cv::Mat::AUTO_STEP);    
         irframe.right = cv::Mat(cv::Size(data.width, data.height), CV_8UC1, data.right, cv::Mat::AUTO_STEP);
@@ -66,22 +71,35 @@ int main() try
     auto device_list = StereoDriver::getDeviceList();
     std::string sn;
     std::cout << "Listing Plugged-in Devices... " << std::endl;
+
+    StereoDriver* sys; 
+
     for (auto& device : device_list)
     {
         std::cout << device.first << std::endl;
         if (device.first.find(target_device_name) != std::string::npos)
         {
+            sys = new StereoDriver(device.second);
+
+            if (!sys->isInitialised())
+            {
+                delete sys;
+                sys = nullptr;
+                continue;
+            }
+
             sn = device.second;
             break;
         }     
     }
+
     if (sn.empty())
     {
         std::cerr << target_device_name << " is not found, quitting." << std::endl;
         exit(-1);
     }
 
-    StereoDriver* sys = new StereoDriver(sn);
+    
 
     // for more options, please refer rs_option.h
     sys->setOption(RS2_OPTION_EXPOSURE,15000); // in usec
@@ -94,13 +112,19 @@ int main() try
     cv::namedWindow(window_name_l, cv::WINDOW_AUTOSIZE);
     cv::namedWindow(window_name_r, cv::WINDOW_AUTOSIZE);
 
+    
+
+    uint64_t frame_idx = 0;
+    irframe.t = 0;
+    irframe.seq = 0;
+
     sys->registerCallback(stereoImageCallback);
 
     sys->enableStereoStream();
+
     sys->startPipe();
 
-    uint frame_idx = 0;
-    while (cv::waitKey(1) < 0)
+    while ( true )
     {
         if (frame_idx < irframe.seq)
         {   
@@ -112,6 +136,10 @@ int main() try
             frame_idx = irframe.seq;
             irframe.inProcess.unlock();
         }
+
+        int ret = cv::waitKey(1);
+        if (ret != -1 && ret != 255)
+            break;
     }
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(5000));

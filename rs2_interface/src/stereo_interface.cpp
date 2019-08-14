@@ -90,7 +90,7 @@ std::map<std::string, std::string> StereoDriver::getDeviceList(std::string targe
 //     return sn;
 // }
 
-StereoDriver::StereoDriver(std::string dev_sn_str) : _dev_sn_str(dev_sn_str), initialised(false)
+StereoDriver::StereoDriver(std::string dev_sn_str) : initialised(false), _dev_sn_str(dev_sn_str)
 {
     // High CPU usage issue https://github.com/IntelRealSense/librealsense/issues/2037
 
@@ -434,7 +434,8 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         // Refer to https://github.com/IntelRealSense/librealsense/issues/2188
         //metadata in usec
 
-        // auto meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
+        int meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
+        int meta_gain = frame_left.get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
 
         uint64_t mid_shutter_time_estimate = 0;
 
@@ -480,7 +481,7 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         char* irright = new char[w*h];
         memcpy(irright,frame_right.get_data(),w*h);
 
-        StereoDataType data = {mid_shutter_time_estimate, irleft, irright, w, h, time_left, time_right, seq_left, seq_right};
+        StereoDataType data = {mid_shutter_time_estimate, irleft, irright, w, h, time_left, time_right, seq_left, seq_right,meta_exposure, meta_gain};
         for (callbackStereo& cb : _cblist_stereo){
             (cb)(data);
         }

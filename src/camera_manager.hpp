@@ -38,7 +38,7 @@ public:
 
     // Exposure control param
     int initial_exposure, initial_gain;
-    int exposure_max;
+    int exposure_max, gain_max;
     double exposure_change_rate;
     int exposure_target_mean;
     int exposure_dead_region;

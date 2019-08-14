@@ -99,7 +99,7 @@ int main() try
     sys->startPipe();
 
     uint frame_idx = 0;
-    while (cv::waitKey(1) < 0)
+    while (true)
     {
         if (frame_idx < stereo_frame.seq)
         {   
@@ -111,6 +111,10 @@ int main() try
             frame_idx = stereo_frame.seq;
             stereo_frame.inProcess.unlock();
         }
+
+        int ret = cv::waitKey(1);
+        if (ret != -1 && ret != 255)
+            break;
     }
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(5000));

@@ -210,8 +210,10 @@ int ExposureControl::EstimateMeanLuminance()
     return (int)MeanLuminance;
 }
 
-void ExposureControl::updateExposureGain(const int& MeanLuminance, const int& exposure_usec,const int& gain, int& exposure_usec_next, int& gain_next)
+void ExposureControl::updateExposureGain(const int& MeanLuminance, const int& exposure_usec,const int& gain, int& exposure_usec_next, int& gain_next, bool do_smoothing)
 {
+    exposure_usec_next = exposure_usec;
+    gain_next = gain;
 
     if (MeanLuminance < param.exposure_target_mean - param.exposure_dead_region) // image too dark
     {
@@ -224,15 +226,15 @@ void ExposureControl::updateExposureGain(const int& MeanLuminance, const int& ex
         }
         else if(gain  <  param.gain_max)
         {
-            gain_next = std::min(param.gain_max, gain + 2*margin);
+            gain_next = std::min(param.gain_max, gain + margin);
         }
     }else if (MeanLuminance > param.exposure_target_mean + param.exposure_dead_region) // image too bight
     {
         int margin = MeanLuminance - (param.exposure_target_mean + param.exposure_dead_region);
         // Consider Gain first
-        if (gain > 160 /*good default*/)
+        if (gain > 50 /*good default*/)
         {
-            gain_next= std::max(160, gain - 2*margin);
+            gain_next= std::max(50, gain - margin);
         }
         else if(exposure_usec > 8000 /*good default*/)
         {
@@ -241,7 +243,7 @@ void ExposureControl::updateExposureGain(const int& MeanLuminance, const int& ex
         }
         else if (gain > param.gain_min)
         {
-            gain_next = std::max(param.gain_min, gain - 2*margin);
+            gain_next = std::max(param.gain_min, gain - margin);
         }
         else if (exposure_usec > param.exposure_min)
         {
@@ -250,6 +252,18 @@ void ExposureControl::updateExposureGain(const int& MeanLuminance, const int& ex
             
         }
     }
+    // const double update_rate = 0.5;
+    
+    int exposure_jump = 0.4 * exposure_usec + 500;
+    int gain_jump = 20;
+
+    if (do_smoothing)
+    {
+        exposure_usec_next = std::max (exposure_usec - exposure_jump, std::min(exposure_usec + exposure_jump, exposure_usec_next));
+        gain_next = std::max (gain - gain_jump, std::min(gain +  gain_jump, gain_next));
+    }
+
+    
 }
 
 void ExposureControl::showHistogram(int exposure_usec, int gain)

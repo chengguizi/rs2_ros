@@ -2,6 +2,9 @@
 #include "exposure_ctl.hpp"
 
 #include <memory>
+
+#include <numeric>
+
 #include <rs2_ros/CameraStats.h>
 
 
@@ -46,12 +49,17 @@ void CameraParam::loadExposureControlParam(const std::string& type)
     nh_type.getParam("initial_exposure",initial_exposure);
     nh_type.getParam("initial_gain",initial_gain);
     nh_type.getParam("exposure_max",exposure_max);
+    nh_type.getParam("gain_max",gain_max);
     nh_type.getParam("exposure_change_rate",exposure_change_rate);
     nh_type.getParam("exposure_target_mean",exposure_target_mean);
     nh_type.getParam("exposure_dead_region",exposure_dead_region);
     nh_type.getParam("exposure_a_max",exposure_a_max);
     nh_type.getParam("exposure_a_min",exposure_a_min);
     nh_type.getParam("exposure_c",exposure_c);
+
+    ros::NodeHandle nh_local("~/" + topic_ns);
+    nh_local.setParam("exposure",initial_exposure);
+    nh_local.setParam("gain",initial_gain);
 
 }
 
@@ -88,8 +96,8 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         sys->setOption(RS2_OPTION_EXPOSURE, param.initial_exposure);
         sys->setOption(RS2_OPTION_GAIN, param.initial_gain);
         
-        ExposureControl::Param expo_ctl_param = {(int)param.exposure_range.max, (int)param.exposure_range.min, (int)param.exposure_range.step,
-            (int)param.gain_range.max, (int)param.gain_range.min, (int)param.gain_range.step,
+        ExposureControl::Param expo_ctl_param = {param.exposure_max, (int)param.exposure_range.min, (int)param.exposure_range.step,
+            param.gain_max, (int)param.gain_range.min, (int)param.gain_range.step,
             param.exposure_change_rate, param.exposure_target_mean, param.exposure_dead_region,
             param.exposure_a_min, param.exposure_a_max, param.exposure_c
         };
@@ -115,7 +123,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         sys->registerCallback(std::bind(&CameraManager::setStereoFrame, this, std::placeholders::_1));
 
         pub = new StereoCameraPublisher(topic_ns);
-        pub_stats = nh_local.advertise<rs2_ros::CameraStats>("camera_stats",10);
+        pub_stats = nh_local.advertise<rs2_ros::CameraStats>("/" + topic_ns + "/camera_stats",10);
     }
 
     if (param.do_publish_poseimu)
@@ -256,6 +264,48 @@ void CameraManager::processFrame()
         timestamp.fromSec(frame.time_left);
 
         pub->publish(left, right, cameraInfo_left, cameraInfo_right, timestamp, frame.seq_left);
+
+
+        rs2_ros::CameraStats stats_msg;
+        stats_msg.header.stamp = timestamp;
+        stats_msg.exposure = frame.exposure;
+        stats_msg.gain = frame.gain;
+        stats_msg.meanLux = 0;
+
+        if (param.auto_exposure_mode == "custom" )
+        {
+            expo_ctl->calcHistogram(left,frame.exposure, frame.gain);
+            stats_msg.meanLux = expo_ctl->EstimateMeanLuminance();
+            int exposure_next = frame.exposure;
+            int gain_next = frame.gain;
+
+            if (frame.seq_left % 2)
+            {
+                expo_ctl->updateExposureGain(stats_msg.meanLux, frame.exposure, frame.gain, exposure_next, gain_next, false);
+                exposure_next = std::round(exposure_next/param.exposure_range.step)*param.exposure_range.step;
+                gain_next = std::round(gain_next/param.gain_range.step)*param.gain_range.step;
+            }
+            // std::cout << "update exposure=" << exposure_next << ", gain=" << gain_next << std::endl;
+
+            if (exposure_next != frame.exposure) sys->setOption(RS2_OPTION_EXPOSURE, exposure_next);
+            if (gain_next != frame.gain) sys->setOption(RS2_OPTION_GAIN, gain_next);
+        }else if (param.auto_exposure_mode == "manual")
+        {
+            static ros::NodeHandle nh_local("~/" + param.topic_ns);
+            int param_exposure, param_gain;
+
+            nh_local.getParam("exposure",param_exposure);
+            nh_local.getParam("gain",param_gain);
+
+            if (param_exposure != frame.exposure || param_gain != frame.gain)
+            {
+                sys->setOption(RS2_OPTION_EXPOSURE, param_exposure);
+                sys->setOption(RS2_OPTION_GAIN, param_gain);
+                std::cout << "New settings: exposure=" << param_exposure << " , gain=" << param_gain << std::endl;
+            }
+        }
+        
+        pub_stats.publish(stats_msg);
         
         // std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }

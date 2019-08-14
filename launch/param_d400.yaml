@@ -6,14 +6,15 @@ frame_rate: 30
 initial_exposure: 10000
 initial_gain: 40
 
-max_exposure: 12000
-mean_intensity_setpoint: 1800
+exposure_max: 12000
+gain_max: 90
+exposure_mean_intensity_setpoint: 1800
 laser_power: 0
 
-exposure_change_rate: 1.5
-target_mean: 110
-dead_region: 5
+exposure_change_rate: 2
+exposure_target_mean: 105
+exposure_dead_region: 4
 
-a_min: 0.4
-a_max: 0.9
-c: 0.5
+exposure_a_min: 0.4
+exposure_a_max: 0.9
+exposure_c: 0.5

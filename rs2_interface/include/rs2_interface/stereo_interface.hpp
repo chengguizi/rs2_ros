@@ -35,6 +35,8 @@ public:
         double time_right; // System Time Domain
         uint64_t seq_left;
         uint64_t seq_right;
+        int exposure;
+        int gain;
     };
 
     struct PoseDataType{

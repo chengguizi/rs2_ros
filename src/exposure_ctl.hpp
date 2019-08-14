@@ -27,7 +27,7 @@ public:
 
     void calcHistogram(cv::Mat img, int exposure_usec, int gain, int histSize = 256);
     int EstimateMeanLuminance(); // this requires calcHistogram()
-    void updateExposureGain(const int& MeanLuminance, const int& exposure_usec,const int& gain, int& exposure_usec_next, int& gain_next);
+    void updateExposureGain(const int& MeanLuminance, const int& exposure_usec,const int& gain, int& exposure_usec_next, int& gain_next, bool do_smoothing);
 
     const cv::Mat getHist(){return hist;}
     void getIntensityRange(int &min, int &max){min = intensity_min; max = intensity_max;}
