@@ -5,6 +5,8 @@
 
 #include <numeric>
 
+#include <cassert>
+
 #include <rs2_ros/CameraStats.h>
 
 
@@ -252,11 +254,17 @@ void CameraManager::processFrame()
     while(ros::ok()){
         std::unique_lock<std::mutex> lk(inProcess); // this call also locks the thread, with blocking behaviour
         auto ret = cv.wait_for(lk,std::chrono::seconds(2)); // with ~0.03ms delay, lock reacquired
-        
+
         if (ret == std::cv_status::timeout ){
             std::cerr << param.topic_ns << ": Wait timeout for new frame arrival..." << std::endl;
             continue;
         }
+
+        assert(frame.is_published == false);
+        frame.is_published = true;
+
+        ROS_INFO_STREAM_THROTTLE(1, param.topic_ns << " " << frame.seq_left);
+
         auto left = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.left, cv::Mat::AUTO_STEP);
         auto right = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.right, cv::Mat::AUTO_STEP);
 

@@ -43,7 +43,17 @@ int main(int argc, char * argv[])
 
     // ros::AsyncSpinner spinner(2);
 	// spinner.start();
-    ros::spin();
+
+    ROS_INFO("Start Spinning");
+
+    if (process_list.size() != 0)
+        ros::spin();
+    else
+    {
+        std::cerr << "No cameras are successfully loaded..." << std::endl;
+    }
+    
+    std::cout << "Cleaning up..." << std::endl;
 
     for (auto& process : process_list)
     {

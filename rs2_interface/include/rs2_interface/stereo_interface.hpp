@@ -18,8 +18,10 @@
 
 #include <map>
 
+#include <cmath>
+
 //debug
-// #include <cassert>
+#include <cassert>
 
 class StereoDriver {
 
@@ -37,6 +39,7 @@ public:
         uint64_t seq_right;
         int exposure;
         int gain;
+        bool is_published;
     };
 
     struct PoseDataType{
@@ -132,18 +135,20 @@ private:
             // std::cout  << "begin = " << gyro[begin].seq << ", end = " << gyro[end-1].seq << std::endl;
             double duration = curr_accel.timestamp - last_accel.timestamp;
 
-            // assert(duration != 0.0);
+            assert(duration > 0.0);
 
             double grad_x = (curr_accel.x - last_accel.x) / duration;
             double grad_y = (curr_accel.y - last_accel.y) / duration;
             double grad_z = (curr_accel.z - last_accel.z) / duration;
+
+            assert(std::isfinite(grad_x) && std::isfinite(grad_y) && std::isfinite(grad_z));
             
             // last_accel.timestamp is always older than the gyro[begin]
             for(; begin != end && gyro[begin].timestamp <= curr_accel.timestamp ; begin++){ 
                 double lapse = (gyro[begin].timestamp - last_accel.timestamp);
 
                 // std::cout << std::setprecision(15) << gyro[begin].timestamp << std::endl << last_accel.timestamp << std::endl << gyro[end - 1].timestamp << std::endl << std::endl;
-                if (lapse < 0)
+                if (lapse < 0.0)
                     continue;
 
                 SyncedIMUDataType imu_data;

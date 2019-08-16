@@ -10,7 +10,7 @@ stereo:
   stereo: true
   depth: false
   poseimu: true
-  auto_exposure_mode: internal # internal, custom, or manual
+  auto_exposure_mode: custom # internal, custom, or manual
 
 stereo2: 
   type: d400 # for loading type specific yaml
@@ -18,7 +18,7 @@ stereo2:
   stereo: true
   depth: false
   poseimu: true
-  auto_exposure_mode: internal
+  auto_exposure_mode: custom
 
 stereo3:
   type: d400 # for loading type specific yaml
