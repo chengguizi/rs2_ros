@@ -122,8 +122,8 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         sys->enableStereoStream(param.width, param.height, param.hz);
         sys->registerCallback(std::bind(&CameraManager::setStereoFrame, this, std::placeholders::_1));
 
-        pub = new StereoCameraPublisher(topic_ns);
-        pub_stats = nh_local.advertise<rs2_ros::CameraStats>("/" + topic_ns + "/camera_stats",10);
+        pub = new StereoCameraPublisher(nh_local);
+        pub_stats = nh_local.advertise<rs2_ros::CameraStats>("camera_stats",10);
     }
 
     if (param.do_publish_poseimu)
@@ -138,7 +138,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
             exit(-1);
         }
 
-        pub_imu = new IMUPublisher(topic_ns);
+        pub_imu = new IMUPublisher(nh_local);
     }
 
     //// Get Some Intrinsics and Extrinsics
@@ -251,7 +251,7 @@ void CameraManager::processFrame()
 
     while(ros::ok()){
         std::unique_lock<std::mutex> lk(inProcess); // this call also locks the thread, with blocking behaviour
-        auto ret = cv.wait_for(lk,std::chrono::seconds(5)); // with ~0.03ms delay, lock reacquired
+        auto ret = cv.wait_for(lk,std::chrono::seconds(2)); // with ~0.03ms delay, lock reacquired
         
         if (ret == std::cv_status::timeout ){
             std::cerr << param.topic_ns << ": Wait timeout for new frame arrival..." << std::endl;

@@ -481,7 +481,7 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         char* irright = new char[w*h];
         memcpy(irright,frame_right.get_data(),w*h);
 
-        StereoDataType data = {mid_shutter_time_estimate, irleft, irright, w, h, time_left, time_right, seq_left, seq_right,meta_exposure, meta_gain};
+        StereoDataType data = {mid_shutter_time_estimate, irleft, irright, w, h, time_left, time_right, seq_left, seq_right, meta_exposure, meta_gain};
         for (callbackStereo& cb : _cblist_stereo){
             (cb)(data);
         }
