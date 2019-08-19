@@ -47,7 +47,7 @@ public:
     rs2::option_range exposure_range, gain_range;
 
     static std::vector<std::string> camera_list;
-    static std::vector<std::string>  loadCameras();
+    static std::vector<std::string>  loadCameras(const ros::NodeHandle& nh);
     void loadParam(const std::string& topic_ns);
     void loadExposureControlParam(const std::string& type);
 };

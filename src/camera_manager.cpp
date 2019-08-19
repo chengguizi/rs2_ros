@@ -12,11 +12,10 @@
 
 std::vector<std::string> CameraParam::camera_list;
 
-std::vector<std::string>  CameraParam::loadCameras()
+std::vector<std::string>  CameraParam::loadCameras(const ros::NodeHandle& nh)
 {
-    ros::NodeHandle nh_local("~");
-    // std::cout << nh_local.getNamespace() << std::endl;
-    nh_local.getParam("devices", camera_list);
+    // // std::cout << nh_local.getNamespace() << std::endl;
+    nh.getParam("devices", camera_list);
 
     return camera_list;
 }
@@ -263,7 +262,7 @@ void CameraManager::processFrame()
         assert(frame.is_published == false);
         frame.is_published = true;
 
-        ROS_INFO_STREAM_THROTTLE(1, param.topic_ns << " " << frame.seq_left);
+        // ROS_INFO_STREAM_THROTTLE(1, param.topic_ns << " " << frame.seq_left);
 
         auto left = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.left, cv::Mat::AUTO_STEP);
         auto right = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.right, cv::Mat::AUTO_STEP);

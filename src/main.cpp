@@ -6,11 +6,16 @@ int main(int argc, char * argv[])
 
     ros::init(argc, argv, "camera_manager");
 
-    auto camera_ns_list = CameraParam::loadCameras();
+    ROS_INFO("Realsense ROS Interface");
+    
+    ros::NodeHandle nh_local("~"); // Node handle should be created in the main thread!
+    auto camera_ns_list = CameraParam::loadCameras(nh_local);
 
     std::cout << camera_ns_list.size() << " Cameras to be loaded..." << std::endl;
 
     std::vector<std::unique_ptr<CameraManager>> camera_list;
+
+    
 
     for (auto& camera_ns : camera_ns_list)
     {
@@ -23,9 +28,7 @@ int main(int argc, char * argv[])
             camera.reset();
             std::cerr << "Initialise SN: " << camera_ns << " Failed" << std::endl;
         }
-        
     }
-
 
     // start Pipes
     // Start image process in different threads
