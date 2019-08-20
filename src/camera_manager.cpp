@@ -298,7 +298,7 @@ void CameraManager::processFrame()
             if (gain_next != frame.gain) sys->setOption(RS2_OPTION_GAIN, gain_next);
         }else if (param.auto_exposure_mode == "manual")
         {
-            static ros::NodeHandle nh_local("~/" + param.topic_ns);
+            ros::NodeHandle nh_local("~/" + param.topic_ns);
             int param_exposure, param_gain;
 
             nh_local.getParam("exposure",param_exposure);
@@ -308,7 +308,7 @@ void CameraManager::processFrame()
             {
                 sys->setOption(RS2_OPTION_EXPOSURE, param_exposure);
                 sys->setOption(RS2_OPTION_GAIN, param_gain);
-                std::cout << "New settings: exposure=" << param_exposure << " , gain=" << param_gain << std::endl;
+                ROS_INFO_STREAM_THROTTLE(0.5, "New settings: exposure=" << param_exposure << " , gain=" << param_gain );
             }
         }
         

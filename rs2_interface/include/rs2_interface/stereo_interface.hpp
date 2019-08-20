@@ -22,6 +22,8 @@
 
 //debug
 #include <cassert>
+#include <iomanip>
+#include <iostream>
 
 class StereoDriver {
 
@@ -135,7 +137,12 @@ private:
             // std::cout  << "begin = " << gyro[begin].seq << ", end = " << gyro[end-1].seq << std::endl;
             double duration = curr_accel.timestamp - last_accel.timestamp;
 
-            assert(duration > 0.0);
+            if (duration <= 0.0)
+            {
+                std::cerr << "IMU timestamp jitter detected,  curr vs. last = " << std::setprecision(15) << curr_accel.timestamp << ", " << last_accel.timestamp << std::endl;
+                std::cerr << duration << std::endl;
+                return;
+            }
 
             double grad_x = (curr_accel.x - last_accel.x) / duration;
             double grad_y = (curr_accel.y - last_accel.y) / duration;
