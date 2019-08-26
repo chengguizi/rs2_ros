@@ -435,7 +435,9 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         //metadata in usec
 
         int meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
-        int meta_gain = frame_left.get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
+        int meta_gain = 0;
+        if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL))
+            meta_gain = frame_left.get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
 
         uint64_t mid_shutter_time_estimate = 0;
 
@@ -474,7 +476,7 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         // uint64_t delay_uvc_to_frontend2 = meta_toa2 - meta_backendtime2;
         // std::cout << delay_uvc_to_frontend << "  " << delay_uvc_to_frontend2 << std::endl;
 
-
+        
         char* irleft = new char[w*h];
         memcpy(irleft,frame_left.get_data(),w*h);
 
