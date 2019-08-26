@@ -3,10 +3,10 @@ height: 800
 frame_rate: 30
 
 initial_exposure: 5000
-initial_gain: 16
+initial_gain: 5
 
 exposure_max: 12000
-gain_max: 90
+gain_max: 10
 exposure_mean_intensity_setpoint: 1800
 laser_power: 0
 

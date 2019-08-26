@@ -26,7 +26,7 @@ stereo3:
   stereo: true
   depth: false
   poseimu: false
-  auto_exposure_mode: internal
+  auto_exposure_mode: manual
 
 fisheye: 
   type: t265
@@ -34,4 +34,4 @@ fisheye:
   stereo: true
   depth: false
   poseimu: true
-  auto_exposure_mode: internal # custom
+  auto_exposure_mode: manual # custom

@@ -435,10 +435,12 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         //metadata in usec
 
         int meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
-        int meta_gain = 0;
+        int meta_gain = -1;
         if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL))
             meta_gain = frame_left.get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
-
+        else if(num_stereo_frames == 1)
+            std::cout << "Stereo does not support metadata gain level get" << std::endl;
+    
         uint64_t mid_shutter_time_estimate = 0;
 
         //// NO LONGER NEEDED DUE TO FIRMWARE UPDATE FOR GLOBAL TIME IMPLEMENTATION FROM LIBREALSENSE
@@ -599,6 +601,19 @@ void StereoDriver::enableAE(uint32_t meanIntensitySetPoint)
     ae_ctl_t.meanIntensitySetPoint = meanIntensitySetPoint;
     adv_mode.set_ae_control(ae_ctl_t);
     std::cout << "AE Setpoint set to " << meanIntensitySetPoint << std::endl;
+}
+
+void StereoDriver::disableAE()
+{
+    setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);
+
+    if (getOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE) != 0)
+    {
+        std::cout << "AE is failed to be disabled" << std::endl;
+        exit(-1);
+    }
+    else
+        std::cout << "AE is disabled" << std::endl;
 }
 
 rs2::option_range StereoDriver::getOptionRange(rs2_option option)

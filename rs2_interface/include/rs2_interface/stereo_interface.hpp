@@ -87,7 +87,7 @@ public:
     std::string getDeviceName(){return _dev_name_str;};
 
     void enableAE(uint32_t meanIntensitySetPoint);
-    void disableAE(){setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,0);};
+    void disableAE();
     rs2::option_range getOptionRange(rs2_option option);
     void enablePoseMotionStream();
     void enableStereoStream(int width = 0, int height = 0, int hz = 0, rs2_format stream_format = RS2_FORMAT_ANY);

@@ -107,8 +107,8 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
     }else if (param.auto_exposure_mode == "manual")
     {
         param.loadExposureControlParam(param.type);
-        std::cout << "Set Fixed Exposure & Gain: " << param.initial_exposure << ", " <<  param.initial_gain << std::endl;
         sys->disableAE();
+        std::cout << "Set Fixed Exposure & Gain: " << param.initial_exposure << ", " <<  param.initial_gain << std::endl;
         sys->setOption(RS2_OPTION_EXPOSURE, param.initial_exposure);
         sys->setOption(RS2_OPTION_GAIN, param.initial_gain);
     }else{
@@ -272,6 +272,9 @@ void CameraManager::processFrame()
 
         pub->publish(left, right, cameraInfo_left, cameraInfo_right, timestamp, frame.seq_left);
 
+        // workaround for T265
+        if (frame.gain == -1)
+            ROS_WARN_THROTTLE(30,"T265 does not support RS2_FRAME_METADATA_GAIN_LEVEL yet, so no gain metadata available");
 
         rs2_ros::CameraStats stats_msg;
         stats_msg.header.stamp = timestamp;
@@ -303,6 +306,9 @@ void CameraManager::processFrame()
 
             nh_local.getParam("exposure",param_exposure);
             nh_local.getParam("gain",param_gain);
+
+            if (frame.gain == -1)
+                frame.gain = param_gain;
 
             if (param_exposure != frame.exposure || param_gain != frame.gain)
             {
