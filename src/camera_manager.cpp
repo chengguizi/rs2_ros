@@ -125,6 +125,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
 
         pub = new StereoCameraPublisher(nh_local);
         pub_stats = nh_local.advertise<rs2_ros::CameraStats>("camera_stats",10);
+
     }
 
     if (param.do_publish_poseimu)
@@ -142,8 +143,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         pub_imu = new IMUPublisher(nh_local);
     }
 
-    //// Get Some Intrinsics and Extrinsics
-    getCameraInfo();
+    
 
     frame.left = nullptr;
 
@@ -160,7 +160,7 @@ void CameraManager::getCameraInfo()
 {
     sensor_msgs::CameraInfo camerainfo;
 
-    rs2_intrinsics intrinsics = sys->get_intrinsics();
+    const rs2_intrinsics intrinsics = sys->get_intrinsics();
     float baseline = sys->get_baseline();
 
     camerainfo.width = intrinsics.width;
@@ -212,8 +212,13 @@ void CameraManager::getCameraInfo()
 
 void CameraManager::setStereoFrame(const StereoDriver::StereoDataType& frame)
 {
-    if (this->frame.left == nullptr) 
+    if (this->frame.left == nullptr)
+    {
         std::cout << "First Frame Received for " << param.topic_ns << std::endl;
+        //// Get Some Intrinsics and Extrinsics
+        getCameraInfo();
+    }
+        
 
     if (inProcess.try_lock()){
 
