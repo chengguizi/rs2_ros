@@ -5,17 +5,19 @@
                 "databaseFilename": "",
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "/opt/ros/kinetic/include",
+                    "/opt/ros/melodic/include",
                     "/usr/include"
                 ]
             },
             "includePath": [
-                "/opt/ros/kinetic/include",
+                "/opt/ros/melodic/include",
                 "/usr/include",
                 "./rs2_interface/include"
             ],
             "name": "Linux",
-            "intelliSenseMode": "clang-x64"
+            "intelliSenseMode": "clang-x64",
+            "compilerPath": "",
+            "configurationProvider": "vector-of-bool.cmake-tools"
         }
     ],
     "version": 4
