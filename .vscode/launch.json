@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "/home/dhl/git/catkin_ws/devel/lib/rs2_ros/rs2_ros",
+            "program": "/home/nuc/git/catkin_ws/devel/lib/rs2_ros/rs2_ros",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

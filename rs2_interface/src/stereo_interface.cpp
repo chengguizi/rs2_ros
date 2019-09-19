@@ -448,12 +448,17 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         // Refer to https://github.com/IntelRealSense/librealsense/issues/2188
         //metadata in usec
 
-        int meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
+        int meta_exposure = 0;
+        if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE))
+            meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
+        else if(num_stereo_frames == 1)
+            std::cout << "[ERROR] Stereo does not support metadata actual exposure get" << std::endl;
+
         int meta_gain = -1;
         if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL))
             meta_gain = frame_left.get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
         else if(num_stereo_frames == 1)
-            std::cout << "Stereo does not support metadata gain level get" << std::endl;
+            std::cout << "[ERROR] Stereo does not support metadata gain level get" << std::endl;
     
         uint64_t mid_shutter_time_estimate = 0;
 
