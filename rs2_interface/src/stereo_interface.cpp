@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <cassert>
 
+#include <chrono>
+
 #include "rs2_interface/stereo_interface.hpp"
 
 
@@ -98,7 +100,7 @@ StereoDriver::StereoDriver(std::string dev_sn_str) : initialised(false), _dev_sn
 
     if (init())
     {
-        setOption(RS2_OPTION_LASER_POWER,0);
+        // setOption(RS2_OPTION_LASER_POWER,0);
         _pipe = new rs2::pipeline(_ctx); // Jun 2019: This line has to be called after init(), otherwise T265 will not be detected
     }      
     else
@@ -142,7 +144,7 @@ bool StereoDriver::init()
     }
     else
     {
-        std::cout << "Found the following devices:" << std::endl;
+        // std::cout << "Found the following devices:" << std::endl;
 
         // device_list is a "lazy" container of devices which allows
         //The device list provides 2 ways of iterating it
@@ -153,7 +155,7 @@ bool StereoDriver::init()
         {
             const std::string name = device.get_info(RS2_CAMERA_INFO_NAME);
             const std::string sn = device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-            std::cout << "  " << index << " : " << name << " (" << sn << ")" << std::endl;
+            // std::cout << "  " << index << " : " << name << " (" << sn << ")" << std::endl;
 
             if (_dev_sn_str == sn)
             {
@@ -169,7 +171,7 @@ bool StereoDriver::init()
 
         if (!rs2_found) // no realsense device present
         {
-            std::cerr << "No RealSense camera was found, exiting..." << std::endl;
+            std::cerr << "Camera " << _dev_sn_str <<" was NOT found, failed to initialise" << std::endl;
             return false;
         }
 
@@ -177,14 +179,14 @@ bool StereoDriver::init()
         selected_device = devices[index];
     }
 
-    std::cout << "=======================================" << std::endl;
+    // std::cout << "=======================================" << std::endl;
     _dev = new auto(selected_device);
 
 
     //// select the IR stereo sensors from the first detected realsense device
     std::vector<rs2::sensor> sensors = _dev->query_sensors();
 
-    std::cout << "Device consists of " << sensors.size() << " sensors:\n" << std::endl;
+    // std::cout << "Device consists of " << sensors.size() << " sensors:\n" << std::endl;
     
     // We can now iterate the sensors and print their names
     int index = 0;
@@ -193,7 +195,7 @@ bool StereoDriver::init()
     for (rs2::sensor sensor : sensors)
     {
         auto sensor_name = get_sensor_name(sensor);
-        std::cout << "  " << index << " : " << sensor_name << std::endl;
+        // std::cout << "  " << index << " : " << sensor_name << std::endl;
 
         // determine stereo sensor type
         if (sensor_name == "Stereo Module")
@@ -411,8 +413,11 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         num_stereo_frames++;
         int num_frames = dataset.size();
         if (num_frames != 2)
+        {
             std::cerr << "frameset contains " << num_frames << "frames, should be 2."<< std::endl;
-
+            throw std::runtime_error("Non stereo frames");
+        }
+            
         const rs2_stream stream_type = dataset.get_profile().stream_type();
 
         rs2::video_frame frame_left = (stream_type == RS2_STREAM_INFRARED) ? dataset.get_infrared_frame(1) : dataset.get_fisheye_frame(1);
@@ -421,11 +426,20 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         double time_left = frame_left.get_timestamp()/1000;
         uint64_t seq_left = frame_left.get_frame_number();
 
+        // Check for frame seq jitter
+        if (num_stereo_frames > 1){
+            if (last_stereo_seq + 1 != seq_left){
+                std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << seq_left - last_stereo_seq - 1 << ") frame(s)." << std::endl;
+            }
+        }
+
+        last_stereo_seq = seq_left;
+
 
         if (num_stereo_frames == 1)
         {
             auto meta_timedomain = frame_left.get_frame_timestamp_domain();
-            std::cout << "stereo left time = " << (uint64_t) (time_left * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
+            std::cout << "First stereo: " << last_stereo_seq << ", time = " << (uint64_t) (time_left * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
         }
 
         int w = frame_left.get_width();
@@ -468,6 +482,9 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
         
         double time_right = frame_right.get_timestamp()/1000;
         uint64_t seq_right = frame_right.get_frame_number();
+
+        if(seq_left != seq_right)
+            std::cout << "WARN: seq_left != seq_right" << std::endl;
 
         //metadata
         // auto meta_toa2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
@@ -568,12 +585,26 @@ void StereoDriver::imuCallback(const SyncedIMUDataType& data)
     }
 }
 
-void StereoDriver::setOption(rs2_option option, float value)
+void StereoDriver::setOption(rs2_option option, const float value, bool force)
 {
     if (_stereo->supports(option))
         _stereo->set_option(option,value); 
     else
+    {
         std::cerr << "The sensor does not support option " << rs2_option_to_string(option) << std::endl;
+        if (force)
+            throw std::runtime_error("setOption() failed: does not support option");
+    }
+
+    // std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+    if (force)
+    {
+        float value_get = getOption(option);
+        if (value_get != value)
+            throw std::runtime_error("setOption() failed: value assertion, requested " + std::to_string(value) + ", but gotten "  + std::to_string(value_get));
+    }
+        
 }
 
 float StereoDriver::getOption(rs2_option option)

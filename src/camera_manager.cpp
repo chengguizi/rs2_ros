@@ -29,6 +29,7 @@ void CameraParam::loadParam(const std::string& topic_ns)
     nh_local.getParam("type",type);
     nh_local.getParam("sn",camera_sn);
 
+    nh_local.getParam("hardware_synchronisation_mode", do_hardware_sync);
     nh_local.getParam("stereo", do_publish_stereo);
     nh_local.getParam("depth", do_publish_depth);
     nh_local.getParam("poseimu", do_publish_poseimu);
@@ -40,6 +41,7 @@ void CameraParam::loadParam(const std::string& topic_ns)
     nh_type.getParam("height",height);
     nh_type.getParam("frame_rate",hz);
     nh_type.getParam("laser_power",laser_power);
+    nh_type.getParam("alternate_laser_emitter", do_alternate_laser_emitter);
 
 }
 
@@ -81,6 +83,24 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         sys = nullptr;
         return;
     }
+
+    //// Configure Laser Emitter
+    if (param.laser_power > 0){
+        std::cout << "Enable Laser Emitter, with power = " << param.laser_power << std::endl;
+        sys->setOption(RS2_OPTION_EMITTER_ENABLED,1);
+        sys->setOption(RS2_OPTION_LASER_POWER, param.laser_power);
+
+        if (param.do_alternate_laser_emitter){
+            std::cout << "Do Alternating Laser Emitter" << std::endl;
+            sys->setOption(RS2_OPTION_EMITTER_ON_OFF, 1);
+        }
+        
+    }else{
+        std::cout << "Disable Laser Emitter" << std::endl;
+        sys->setOption(RS2_OPTION_EMITTER_ENABLED,0);
+    }
+
+    setSyncMode();
     
     //// Configure Auto Exposure
     if (param.auto_exposure_mode == "internal"){
@@ -112,8 +132,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         sys->setOption(RS2_OPTION_EXPOSURE, param.initial_exposure);
         sys->setOption(RS2_OPTION_GAIN, param.initial_gain);
     }else{
-        std::cerr << "Unknown auto_exposure_mode for " << topic_ns << std::endl;
-        exit(-1);
+        throw std::runtime_error("Unknown auto_exposure_mode for " + topic_ns);
     }
 
     //// Advertise Publishers
@@ -136,8 +155,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         else if (param.type == "d400")
             sys->registerCallback(std::bind(&CameraManager::callbackSyncedIMU_d400,this, std::placeholders::_1));
         else{
-            std::cerr << "Unknown IMU-Camera Transformation" << std::endl;
-            exit(-1);
+            throw std::runtime_error("Unknown IMU-Camera Transformation");
         }
 
         pub_imu = new IMUPublisher(nh_local);
@@ -210,11 +228,40 @@ void CameraManager::getCameraInfo()
     cameraInfo_right.P.at(3) = - intrinsics.fx * baseline;
 }
 
+void CameraManager::setSyncMode()
+{
+
+    // float frames_queue_size = sys->getOption(RS2_OPTION_FRAMES_QUEUE_SIZE);
+    // std::cout << "frames_queue_size = " <<  frames_queue_size << std::endl;
+
+    // sys->setOption(RS2_OPTION_FRAMES_QUEUE_SIZE, 32);
+
+    if (param.hz != 30 && param.hz != 30)
+    {
+        // Doesn't work for framerate 6Hz
+        std::runtime_error("HW Sync only works with higher frame rates");
+    }
+    //// Configure Hardware Synchronisation
+    std::cout << param.topic_ns << ": Setting Hardware Sync Mode to " << param.do_hardware_sync  << std::endl;
+    if (param.do_hardware_sync == "none"){
+        sys->setOption(RS2_OPTION_INTER_CAM_SYNC_MODE, 0);
+    }else if (param.do_hardware_sync == "master"){
+        // sys->setOption(RS2_OPTION_FRAMES_QUEUE_SIZE,1);
+        // sys->setOption(RS2_OPTION_OUTPUT_TRIGGER_ENABLED, 1);
+        sys->setOption(RS2_OPTION_INTER_CAM_SYNC_MODE, 1);
+    }else if (param.do_hardware_sync == "slave"){
+        // sys->setOption(RS2_OPTION_OUTPUT_TRIGGER_ENABLED, 0);
+        sys->setOption(RS2_OPTION_INTER_CAM_SYNC_MODE, 2);
+    }else
+        throw std::runtime_error("Unknown Hardware Sync Mode: " + param.do_hardware_sync);
+}
+
 void CameraManager::setStereoFrame(const StereoDriver::StereoDataType& frame)
 {
+    // std::cerr <<  param.topic_ns << "Frame " << frame.seq_left << std::endl;
     if (this->frame.left == nullptr)
     {
-        std::cout << "First Frame Received for " << param.topic_ns << std::endl;
+        ROS_INFO_STREAM("First Frame Received for " << param.topic_ns);
         //// Get Some Intrinsics and Extrinsics
         getCameraInfo();
     }
@@ -232,7 +279,7 @@ void CameraManager::setStereoFrame(const StereoDriver::StereoDataType& frame)
         cv.notify_one();
     }else
     {
-        std::cerr << "Missing Frame " << frame.seq_left << std::endl;
+        std::cerr << param.topic_ns << ": Missing Frame " << frame.seq_left << std::endl;
     }
     
 }

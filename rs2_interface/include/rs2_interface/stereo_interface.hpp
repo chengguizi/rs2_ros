@@ -82,7 +82,7 @@ public:
     StereoDriver(std::string dev_sn_str = "");
     bool isInitialised(){return initialised;};
     ~StereoDriver();
-    void setOption(rs2_option option, float value);
+    void setOption(rs2_option option, const float value, bool force = true);
     float getOption(rs2_option option);
     std::string getDeviceName(){return _dev_name_str;};
 
@@ -91,6 +91,8 @@ public:
     rs2::option_range getOptionRange(rs2_option option);
     void enablePoseMotionStream();
     void enableStereoStream(int width = 0, int height = 0, int hz = 0, rs2_format stream_format = RS2_FORMAT_ANY);
+    void enableColorStream();
+    void enableDepthStream();
     void startPipe();
     rs2_intrinsics get_intrinsics() const; // only call this after pipe started
     rs2_extrinsics get_extrinsics_left_to_right() const;
@@ -176,7 +178,8 @@ private:
 
     bool initialised;
     bool init();
-    int num_stereo_frames = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
+    uint64_t num_stereo_frames = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
+    uint64_t last_stereo_seq = 0, last_pose_seq = 0, last_gyro_seq = 0, last_accel_seq = 0;
     void frameCallback(const rs2::frame& frame);
     void imuCallback(const SyncedIMUDataType& data);
 
@@ -192,8 +195,8 @@ private:
     rs2_intrinsics _intrinsics;
     rs2_extrinsics _extrinsics_left_to_right;
     float _baseline;
-    int _laser_power; // range 0 - 360, step 30. default 150
-    int _w,_h;
+    // int _laser_power; // range 0 - 360, step 30. default 150
+    // int _w,_h;
 
     // bool _isStreaming;
 

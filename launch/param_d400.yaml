@@ -1,15 +1,16 @@
 width: 848
 height: 480
-frame_rate: 30
+frame_rate: 15
 
 
 initial_exposure: 10000
-initial_gain: 40
+initial_gain: 16
 
 exposure_max: 12000
 gain_max: 90
 exposure_mean_intensity_setpoint: 1800
 laser_power: 0
+alternate_laser_emitter: false
 
 exposure_change_rate: 2
 exposure_target_mean: 105

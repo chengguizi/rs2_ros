@@ -27,9 +27,11 @@ public:
     std::string type;
     std::string camera_sn;
 
+    std::string do_hardware_sync = "none";
     bool do_publish_stereo = true;
     bool do_publish_depth = false;
     bool do_publish_poseimu = false;
+    bool do_alternate_laser_emitter = false;
 
     int width = 0,height = 0,hz = 0;
     int laser_power = 0;
@@ -63,6 +65,7 @@ public:
     bool isInitialised(){return initialised;};
     ~CameraManager();
 
+    void setSyncMode();
     
     void processFrame(); // for running in an independent thread: for jitter detection, exposure control and topic publishing
     void startPipe(){
