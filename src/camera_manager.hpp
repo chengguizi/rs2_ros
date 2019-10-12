@@ -30,6 +30,7 @@ public:
     std::string do_hardware_sync = "none";
     bool do_publish_stereo = true;
     bool do_publish_depth = false;
+    bool do_publish_color = false;
     bool do_publish_poseimu = false;
     bool do_alternate_laser_emitter = false;
 
@@ -67,7 +68,10 @@ public:
 
     void setSyncMode();
     
-    void processFrame(); // for running in an independent thread: for jitter detection, exposure control and topic publishing
+    void processFrame();
+    void processStereoFrame(); // for running in an independent thread: for jitter detection, exposure control and topic publishing
+    void processDepthFrame();
+    void processColorFrame();
     void startPipe(){
         std::cout << param.topic_ns << ": Starting Pipe..." << std::endl;
         sys->startPipe();};
@@ -75,7 +79,9 @@ public:
 private:
     bool initialised;
     StereoDriver* sys;
-    StereoCameraPublisher* pub;
+    StereoCameraPublisher* pub_stereo;
+    ImagePublisher* pub_depth;
+    ImagePublisher* pub_color;
     IMUPublisher* pub_imu;
     ros::Publisher pub_stats;
 
@@ -83,15 +89,34 @@ private:
 
     CameraParam param;
     
-    std::mutex inProcess;
-    std::condition_variable cv;
-    StereoDriver::StereoDataType frame;
+    struct MtxStereoFrame{
+        std::mutex inProcess;
+        std::condition_variable cv;
+        StereoDriver::StereoDataType frame;
+    }mtxStereoFrame;
 
-    sensor_msgs::CameraInfo cameraInfo_left, cameraInfo_right;
+    struct MtxDepthFrame{
+        std::mutex inProcess;
+        std::condition_variable cv;
+        std::function<rs2_intrinsics()> get_intrinsics;
+        StereoDriver::DepthDataType frame;
+    }mtxDepthFrame;
 
-    void getCameraInfo();
+    struct MtxColorFrame{
+        std::mutex inProcess;
+        std::condition_variable cv;
+        StereoDriver::ColorDataType frame;
+        std::function<rs2_intrinsics()> get_intrinsics;
+    }mtxColorFrame;
 
+    sensor_msgs::CameraInfo cameraInfo_left, cameraInfo_right, cameraInfo_depth, cameraInfo_color;
+
+    void getCameraInfo(const rs2_intrinsics& intrinsics, sensor_msgs::CameraInfo& camerainfo, float baseline = 0.0);
+
+    template <class T, class M, class C>
+    void setFrame(const T& frame, M* mtxFrame, C* cameraInfo);
     void setStereoFrame(const StereoDriver::StereoDataType& frame);
+
     void callbackSyncedIMU_t265(const StereoDriver::SyncedIMUDataType& data);
     void callbackSyncedIMU_d400(const StereoDriver::SyncedIMUDataType& data);
 };

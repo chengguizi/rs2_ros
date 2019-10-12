@@ -9,6 +9,8 @@
 
 #include <rs2_ros/CameraStats.h>
 
+#include <sensor_msgs/image_encodings.h>
+
 
 std::vector<std::string> CameraParam::camera_list;
 
@@ -32,6 +34,7 @@ void CameraParam::loadParam(const std::string& topic_ns)
     nh_local.getParam("hardware_synchronisation_mode", do_hardware_sync);
     nh_local.getParam("stereo", do_publish_stereo);
     nh_local.getParam("depth", do_publish_depth);
+    nh_local.getParam("color", do_publish_color);
     nh_local.getParam("poseimu", do_publish_poseimu);
     nh_local.getParam("auto_exposure_mode", auto_exposure_mode); // internal, or custom
 
@@ -142,7 +145,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         sys->enableStereoStream(param.width, param.height, param.hz);
         sys->registerCallback(std::bind(&CameraManager::setStereoFrame, this, std::placeholders::_1));
 
-        pub = new StereoCameraPublisher(nh_local);
+        pub_stereo = new StereoCameraPublisher(nh_local);
         pub_stats = nh_local.advertise<rs2_ros::CameraStats>("camera_stats",10);
 
     }
@@ -161,9 +164,32 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         pub_imu = new IMUPublisher(nh_local);
     }
 
-    
+    if (param.do_publish_depth)
+    {
+        sys->enableDepthStream(param.width, param.height, param.hz);
+        sys->registerCallback(std::bind(&CameraManager::setFrame<StereoDriver::DepthDataType, MtxDepthFrame, sensor_msgs::CameraInfo>, this, std::placeholders::_1, &this->mtxDepthFrame, &this->cameraInfo_depth));
 
-    frame.left = nullptr;
+        pub_depth = new ImagePublisher(nh_local, "depth/image_rect_raw");
+    }
+
+    if (param.do_publish_color)
+    {
+        sys->enableColorStream();
+        sys->registerCallback(std::bind(&CameraManager::setFrame<StereoDriver::ColorDataType, MtxColorFrame, sensor_msgs::CameraInfo>, this, std::placeholders::_1, &this->mtxColorFrame, &this->cameraInfo_color));
+
+        pub_color = new ImagePublisher(nh_local, "color/image_raw");
+    }
+
+    
+    // mark for the first frame
+    mtxStereoFrame.frame.left = mtxStereoFrame.frame.right = nullptr;
+    mtxDepthFrame.frame.data = nullptr;
+    mtxColorFrame.frame.data = nullptr;
+
+    // bind intrinsics function
+    mtxDepthFrame.get_intrinsics = std::bind(&StereoDriver::get_depth_intrinsics,sys);
+    mtxColorFrame.get_intrinsics = std::bind(&StereoDriver::get_color_intrinsics,sys);
+    // mtxColorFrame.get_intrinsics = sys->get_color_intrinsics; ERROR
 
     initialised = true;
 }
@@ -174,12 +200,11 @@ CameraManager::~CameraManager()
         delete sys;
 }
 
-void CameraManager::getCameraInfo()
+void CameraManager::getCameraInfo(const rs2_intrinsics& intrinsics, sensor_msgs::CameraInfo& camerainfo, float baseline)
 {
-    sensor_msgs::CameraInfo camerainfo;
 
-    const rs2_intrinsics intrinsics = sys->get_intrinsics();
-    float baseline = sys->get_baseline();
+    // const rs2_intrinsics intrinsics = sys->get_stereo_intrinsics();
+    // float baseline = sys->get_baseline();
 
     camerainfo.width = intrinsics.width;
     camerainfo.height = intrinsics.height;
@@ -193,7 +218,11 @@ void CameraManager::getCameraInfo()
     camerainfo.P.at(0) = intrinsics.fx;
     camerainfo.P.at(1) = 0;
     camerainfo.P.at(2) = intrinsics.ppx;
-    camerainfo.P.at(3) = 0; // Tx, -fx * B
+
+    // camerainfo.P.at(3) = 0; // Tx, -fx * B
+    // This is the translation term Tx for right camera, assuming left cam is the origin
+    camerainfo.P.at(3) = - intrinsics.fx * baseline;
+
     camerainfo.P.at(4) = 0;
     camerainfo.P.at(5) = intrinsics.fy;
     camerainfo.P.at(6) = intrinsics.ppy;
@@ -221,11 +250,9 @@ void CameraManager::getCameraInfo()
         camerainfo.D.push_back(intrinsics.coeffs[i]);
     }
 
-    cameraInfo_left = camerainfo;
-    cameraInfo_right = camerainfo;
+    // cameraInfo_left = camerainfo;
+    // cameraInfo_right = camerainfo;
 
-    // This is the translation term Tx for right camera, assuming left cam is the origin
-    cameraInfo_right.P.at(3) = - intrinsics.fx * baseline;
 }
 
 void CameraManager::setSyncMode()
@@ -256,30 +283,63 @@ void CameraManager::setSyncMode()
         throw std::runtime_error("Unknown Hardware Sync Mode: " + param.do_hardware_sync);
 }
 
-void CameraManager::setStereoFrame(const StereoDriver::StereoDataType& frame)
+template <class T, class M, class C>
+void CameraManager::setFrame(const T& frame, M* mtxFrame, C* cameraInfo)
 {
     // std::cerr <<  param.topic_ns << "Frame " << frame.seq_left << std::endl;
-    if (this->frame.left == nullptr)
+    if (mtxFrame->frame.data == nullptr)
     {
-        ROS_INFO_STREAM("First Frame Received for " << param.topic_ns);
+        ROS_INFO_STREAM("First " << frame.name << " Frame Received for " << param.topic_ns);
         //// Get Some Intrinsics and Extrinsics
-        getCameraInfo();
+        getCameraInfo(mtxFrame->get_intrinsics(), *cameraInfo);
     }
         
 
-    if (inProcess.try_lock()){
+    if (mtxFrame->inProcess.try_lock()){
 
-        if (this->frame.left != nullptr){
-            delete [] this->frame.left;
-            delete [] this->frame.right;
+        if (mtxFrame->frame.data != nullptr){
+            delete [] mtxFrame->frame.data;
         }
 
-        this->frame = frame;
-        inProcess.unlock();
-        cv.notify_one();
+        mtxFrame->frame = frame;
+        mtxFrame->inProcess.unlock();
+        mtxFrame->cv.notify_one();
     }else
     {
-        std::cerr << param.topic_ns << ": Missing Frame " << frame.seq_left << std::endl;
+        std::cerr << param.topic_ns << ": Missing Frame " << mtxFrame->frame.seq << std::endl;
+    }
+}
+
+// template void CameraManager::setFrame<StereoDriver::StereoDataType, CameraManager::MtxStereoFrame>(const StereoDriver::StereoDataType& frame, CameraManager::MtxStereoFrame* mtxFrame);
+
+void CameraManager::setStereoFrame(const StereoDriver::StereoDataType& frame)
+{
+    // std::cerr <<  param.topic_ns << "Frame " << frame.seq_left << std::endl;
+    if (mtxStereoFrame.frame.left == nullptr)
+    {
+        ROS_INFO_STREAM("First Frame Received for " << param.topic_ns);
+
+        //// Get Some Intrinsics and Extrinsics
+        rs2_intrinsics left, right;
+        sys->get_stereo_intrinsics(left, right);
+        getCameraInfo(left,cameraInfo_left);
+        getCameraInfo(right,cameraInfo_right,sys->get_baseline());
+    }
+        
+
+    if (mtxStereoFrame.inProcess.try_lock()){
+
+        if (mtxStereoFrame.frame.left != nullptr){
+            delete [] mtxStereoFrame.frame.left;
+            delete [] mtxStereoFrame.frame.right;
+        }
+
+        mtxStereoFrame.frame = frame;
+        mtxStereoFrame.inProcess.unlock();
+        mtxStereoFrame.cv.notify_one();
+    }else
+    {
+        std::cerr << param.topic_ns << ": Missing Frame " << mtxStereoFrame.frame.seq_left << std::endl;
     }
     
 }
@@ -300,14 +360,31 @@ void CameraManager::callbackSyncedIMU_d400(const StereoDriver::SyncedIMUDataType
 
 void CameraManager::processFrame()
 {
-    std::cout << param.topic_ns << " process starts..." << std::endl;
+    std::vector<std::thread> process_list;
+    if (param.do_publish_stereo)
+        process_list.push_back(std::thread(&CameraManager::processStereoFrame, this));
+    if (param.do_publish_depth)
+        process_list.push_back(std::thread(&CameraManager::processDepthFrame, this));
+    if (param.do_publish_color)
+        process_list.push_back(std::thread(&CameraManager::processColorFrame, this));
+
+    for (auto& process : process_list)
+        process.join();
+    
+}
+
+void CameraManager::processStereoFrame()
+{
+    std::cout << param.topic_ns << "Stereo process starts..." << std::endl;
+
+    auto& frame = mtxStereoFrame.frame;
 
     while(ros::ok()){
-        std::unique_lock<std::mutex> lk(inProcess); // this call also locks the thread, with blocking behaviour
-        auto ret = cv.wait_for(lk,std::chrono::seconds(2)); // with ~0.03ms delay, lock reacquired
+        std::unique_lock<std::mutex> lk(mtxStereoFrame.inProcess); // this call also locks the thread, with blocking behaviour
+        auto ret = mtxStereoFrame.cv.wait_for(lk,std::chrono::seconds(2)); // with ~0.03ms delay, lock reacquired
 
         if (ret == std::cv_status::timeout ){
-            std::cerr << param.topic_ns << ": Wait timeout for new frame arrival..." << std::endl;
+            std::cerr << param.topic_ns << ": Wait timeout for new Stereo frame arrival..." << std::endl;
             continue;
         }
 
@@ -316,13 +393,27 @@ void CameraManager::processFrame()
 
         // ROS_INFO_STREAM_THROTTLE(1, param.topic_ns << " " << frame.seq_left);
 
-        auto left = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.left, cv::Mat::AUTO_STEP);
-        auto right = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC1, frame.right, cv::Mat::AUTO_STEP);
-
         ros::Time timestamp;
         timestamp.fromSec(frame.time_left);
 
-        pub->publish(left, right, cameraInfo_left, cameraInfo_right, timestamp, frame.seq_left);
+        int cv_encoding = CV_8UC1;
+        std::string encoding;
+
+        if (frame.bpp == 1)
+        {
+            cv_encoding = CV_8UC1;
+            encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+        }  
+        else if (frame.bpp == 2)
+        {
+            cv_encoding = CV_16UC1;
+            encoding = sensor_msgs::image_encodings::TYPE_16UC1;
+        }
+        
+        auto left = cv::Mat(cv::Size(frame.width, frame.height), cv_encoding, frame.left, cv::Mat::AUTO_STEP);
+        auto right = cv::Mat(cv::Size(frame.width, frame.height), cv_encoding, frame.right, cv::Mat::AUTO_STEP);
+
+        pub_stereo->publish(left, right, encoding, cameraInfo_left, cameraInfo_right, timestamp, frame.seq_left);
 
         // workaround for T265
         if (frame.gain == -1)
@@ -375,6 +466,59 @@ void CameraManager::processFrame()
         // std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 
-    std::cout << param.topic_ns << " process ends..." << std::endl;
+    std::cout << param.topic_ns << "Stereo process ends..." << std::endl;
 }
 
+void CameraManager::processDepthFrame()
+{
+    std::cout << param.topic_ns << "Depth process starts..." << std::endl;
+
+    auto& frame = mtxDepthFrame.frame;
+
+    while(ros::ok()){
+        std::unique_lock<std::mutex> lk(mtxDepthFrame.inProcess); // this call also locks the thread, with blocking behaviour
+        auto ret = mtxDepthFrame.cv.wait_for(lk,std::chrono::seconds(2)); // with ~0.03ms delay, lock reacquired
+
+        if (ret == std::cv_status::timeout ){
+            std::cerr << param.topic_ns << ": Wait timeout for new Depth frame arrival..." << std::endl;
+            continue;
+        }
+
+        ros::Time timestamp;
+        timestamp.fromSec(frame.time);
+
+        assert(frame.bpp == 2); // 16-bit depth
+
+        auto depth_cv = cv::Mat(cv::Size(frame.width, frame.height), CV_16UC1, frame.data, cv::Mat::AUTO_STEP);
+
+        // "mono16" and "16UC1" gives different result??
+        pub_depth->publish(depth_cv, sensor_msgs::image_encodings::TYPE_16UC1 , cameraInfo_depth, timestamp, frame.seq);
+
+    }
+    std::cout << param.topic_ns << "Depth process ends..." << std::endl;
+}
+
+void CameraManager::processColorFrame()
+{
+    std::cout << param.topic_ns << "Color process starts..." << std::endl;
+
+    auto& frame = mtxColorFrame.frame;
+
+    while(ros::ok()){
+        std::unique_lock<std::mutex> lk(mtxColorFrame.inProcess); // this call also locks the thread, with blocking behaviour
+        auto ret = mtxColorFrame.cv.wait_for(lk,std::chrono::seconds(2)); // with ~0.03ms delay, lock reacquired
+
+        if (ret == std::cv_status::timeout ){
+            std::cerr << param.topic_ns << ": Wait timeout for new Color frame arrival..." << std::endl;
+            continue;
+        }
+
+        auto color_cv = cv::Mat(cv::Size(frame.width, frame.height), CV_8UC3, frame.data, cv::Mat::AUTO_STEP);
+
+        ros::Time timestamp;
+        timestamp.fromSec(frame.time);
+
+        pub_color->publish(color_cv, sensor_msgs::image_encodings::RGB8, cameraInfo_color, timestamp, frame.seq);
+    }
+    std::cout << param.topic_ns << "Color process ends..." << std::endl;
+}

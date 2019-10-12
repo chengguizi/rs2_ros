@@ -27,7 +27,7 @@ StereoCameraPublisher::StereoCameraPublisher(const ros::NodeHandle& nh) : _nh(nh
     std::cout << "Stereo Publisher initialised." << std::endl;
 }
 
-void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv, sensor_msgs::CameraInfo cameraInfo_left,
+void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv, const std::string encoding, sensor_msgs::CameraInfo cameraInfo_left,
         sensor_msgs::CameraInfo cameraInfo_right,  ros::Time sensor_timestamp, uint64_t seq)
 {
     std_msgs::Header header;
@@ -46,15 +46,43 @@ void StereoCameraPublisher::publish(cv::Mat imageLeft_cv, cv::Mat imageRight_cv,
 
     // publish left image
     cv_bridge::CvImage imageLeft_bridge = cv_bridge::CvImage(header, \
-                sensor_msgs::image_encodings::MONO8, imageLeft_cv);
+                encoding, imageLeft_cv);
 
     _pubLeft->publish(imageLeft_bridge.toImageMsg(),cameraInfoPtr_left); // .toImageMsg() makes a copy of the image data
 
     // publish right image
     cv_bridge::CvImage imageRight_bridge = cv_bridge::CvImage(header, \
-                sensor_msgs::image_encodings::MONO8, imageRight_cv);
+                encoding, imageRight_cv);
 
     _pubRight->publish(imageRight_bridge.toImageMsg(),cameraInfoPtr_right);
+}
+
+ImagePublisher::ImagePublisher()
+{
+    ImagePublisher(ros::NodeHandle("~"), "image");
+}
+
+ImagePublisher::ImagePublisher(const ros::NodeHandle& nh, const std::string topic) : _nh(nh)
+{
+    _it = new image_transport::ImageTransport(_nh);
+    _pub = new auto( _it->advertiseCamera(topic, BUFFER_SIZE) );
+    std::cout << topic << " Publisher initialised." << std::endl;
+}
+
+void ImagePublisher::publish(cv::Mat depth_cv, const std::string encoding, sensor_msgs::CameraInfo info, ros::Time sensor_timestamp, uint64_t seq)
+{
+    std_msgs::Header header;
+    header.stamp = sensor_timestamp;
+    header.seq = seq;
+
+    sensor_msgs::CameraInfoConstPtr cameraInfoPtr = boost::make_shared<sensor_msgs::CameraInfo>(info);
+
+    // publish left image
+    cv_bridge::CvImage imageLeft_bridge = cv_bridge::CvImage(header, \
+                encoding, depth_cv);
+
+    _pub->publish(imageLeft_bridge.toImageMsg(),cameraInfoPtr); // .toImageMsg() makes a copy of the image data
+
 }
 
 IMUPublisher::IMUPublisher()

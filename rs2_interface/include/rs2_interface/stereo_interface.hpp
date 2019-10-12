@@ -30,11 +30,12 @@ class StereoDriver {
 public:
 
     struct StereoDataType{
-        uint64_t mid_shutter_time_estimate; // Generally need not be used, for reference only
+        std::string name;
         char* left;
         char* right;
         int width;
         int height;
+        int bpp;
         double time_left; // System Time Domain
         double time_right; // System Time Domain
         uint64_t seq_left;
@@ -42,6 +43,27 @@ public:
         int exposure;
         int gain;
         bool is_published;
+    };
+
+    struct DepthDataType{
+        std::string name;
+        char* data;
+        int width;
+        int height;
+        int bpp; // bytes per pixel
+        float depth_scale;
+        double time;
+        uint64_t seq;
+    };
+
+    struct ColorDataType{
+        std::string name;
+        char* data;
+        int width;
+        int height;
+        int bpp; // bytes per pixel
+        double time;
+        uint64_t seq;
     };
 
     struct PoseDataType{
@@ -69,7 +91,9 @@ public:
         float gx,gy,gz; // gyroscope
     };
 
-    typedef std::function<void(const StereoDataType&)> callbackStereo; 
+    typedef std::function<void(const StereoDataType&)> callbackStereo;
+    typedef std::function<void(const DepthDataType&)> callbackDepth;
+    typedef std::function<void(const ColorDataType&)> callbackColor;
     typedef std::function<void(const PoseDataType&)> callbackPose; 
     typedef std::function<void(const GyroDataType&)> callbackGyro; 
     typedef std::function<void(const AccelDataType&)> callbackAccel;
@@ -91,14 +115,18 @@ public:
     rs2::option_range getOptionRange(rs2_option option);
     void enablePoseMotionStream();
     void enableStereoStream(int width = 0, int height = 0, int hz = 0, rs2_format stream_format = RS2_FORMAT_ANY);
-    void enableColorStream();
-    void enableDepthStream();
+    void enableColorStream(int width = 0, int height = 0, int hz = 0, rs2_format stream_format = RS2_FORMAT_ANY);
+    void enableDepthStream(int width = 0, int height = 0, int hz = 0, rs2_format stream_format = RS2_FORMAT_ANY);
     void startPipe();
-    rs2_intrinsics get_intrinsics() const; // only call this after pipe started
+    void get_stereo_intrinsics(rs2_intrinsics& stereo_left_intrinsics, rs2_intrinsics& stereo_right_intrinsics); // only call this after pipe started
     rs2_extrinsics get_extrinsics_left_to_right() const;
     float get_baseline() const;
+    rs2_intrinsics get_depth_intrinsics() const;
+    rs2_intrinsics get_color_intrinsics() const;
     void stopPipe();
     void registerCallback(callbackStereo cb);
+    void registerCallback(callbackDepth cb);
+    void registerCallback(callbackColor cb);
     void registerCallback(callbackGyro cb);
     void registerCallback(callbackAccel cb);
     void registerCallback(callbackIMU cb);
@@ -178,8 +206,8 @@ private:
 
     bool initialised;
     bool init();
-    uint64_t num_stereo_frames = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
-    uint64_t last_stereo_seq = 0, last_pose_seq = 0, last_gyro_seq = 0, last_accel_seq = 0;
+    uint64_t num_framesets = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
+    uint64_t last_frameset_seq = 0, last_pose_seq = 0, last_gyro_seq = 0, last_accel_seq = 0;
     void frameCallback(const rs2::frame& frame);
     void imuCallback(const SyncedIMUDataType& data);
 
@@ -188,22 +216,29 @@ private:
     rs2::config _cfg;
     rs2::pipeline* _pipe;
     rs2::device* _dev;
-    rs2::sensor* _stereo;
+    rs2::sensor* _stereo = nullptr;
+    rs2::depth_sensor* _depth = nullptr;
+    rs2::sensor* _color;
     rs2::pipeline_profile* _profile;
     rs2_stream _stereo_stream_type;
 
-    rs2_intrinsics _intrinsics;
+    rs2_intrinsics _stereo_left_intrinsics;
+    rs2_intrinsics _stereo_right_intrinsics;
+    rs2_intrinsics _depth_intrinsics;
+    rs2_intrinsics _color_intrinsics;
     rs2_extrinsics _extrinsics_left_to_right;
     float _baseline;
-    // int _laser_power; // range 0 - 360, step 30. default 150
-    // int _w,_h;
 
-    // bool _isStreaming;
+    bool is_streaming_stereo = false;
+    bool is_streaming_depth = false;
+    bool is_streaming_color = false;
 
     std::mutex callback_stereo_mutex;
     // std::thread _thread;
 
     std::vector<callbackStereo> _cblist_stereo;
+    std::vector<callbackDepth> _cblist_depth;
+    std::vector<callbackColor> _cblist_color;
     std::vector<callbackPose> _cblist_pose;
     std::vector<callbackGyro> _cblist_gyro;
     std::vector<callbackAccel> _cblist_accel;

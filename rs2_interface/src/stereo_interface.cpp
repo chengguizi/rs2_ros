@@ -192,6 +192,8 @@ bool StereoDriver::init()
     int index = 0;
     int found_ir_stereo = -1;
     int found_fisheye_stereo = -1;
+    int found_color = -1;
+
     for (rs2::sensor sensor : sensors)
     {
         auto sensor_name = get_sensor_name(sensor);
@@ -202,6 +204,9 @@ bool StereoDriver::init()
             found_ir_stereo = index;
         else if(sensor_name == "Tracking Module")
             found_fisheye_stereo = index;
+        else if(sensor_name == "RGB Camera")
+            found_color = index;
+
         index++;
     }
 
@@ -214,6 +219,7 @@ bool StereoDriver::init()
     // auto stereo_sensor;
     if (found_ir_stereo >= 0){ // D400
         _stereo = new auto(sensors[found_ir_stereo]); // new auto is needed, otherwise segmentation fault
+        _depth = new auto(_stereo->as<rs2::depth_sensor>());
         _stereo_stream_type = RS2_STREAM_INFRARED;
     }
     else if (found_fisheye_stereo >= 0)
@@ -221,6 +227,9 @@ bool StereoDriver::init()
         _stereo = new auto(sensors[found_fisheye_stereo]); // T265
         _stereo_stream_type = RS2_STREAM_FISHEYE;
     }
+
+    if (found_color >= 0)
+        _color = new auto(sensors[found_color]);
 
     std::cout << "Stereo Sensor initialised successfully!" << std::endl;
     std::cout << "=======================================" << std::endl << std::endl;
@@ -261,11 +270,22 @@ void StereoDriver::enablePoseMotionStream(){
 
 void StereoDriver::enableStereoStream(int width, int height, int hz, rs2_format stream_format)
 {
-
     _cfg.enable_stream(_stereo_stream_type,1, width, height, stream_format, hz); // left
     _cfg.enable_stream(_stereo_stream_type,2, width, height, stream_format, hz); // right
     std::cout << "Enabled Both " << rs2_stream_to_string(_stereo_stream_type) << " Stream" << std::endl;
     std::cout << "Stereo Stream Format: " << rs2_format_to_string(stream_format) << std::endl;
+}
+
+void StereoDriver::enableColorStream(int width, int height, int hz, rs2_format stream_format)
+{
+    _cfg.enable_stream(RS2_STREAM_COLOR, width, height, stream_format, hz);
+    std::cout << "Enabled Color Stream" << std::endl;
+}
+
+void StereoDriver::enableDepthStream(int width, int height, int hz, rs2_format stream_format)
+{
+    _cfg.enable_stream(RS2_STREAM_DEPTH, width, height, stream_format, hz);
+    std::cout << "Enabled Depth Stream" << std::endl;
 }
 
 std::vector<std::string> tokenize_floats(std::string input, char separator){
@@ -329,51 +349,83 @@ void StereoDriver::startPipe()
 
     assert (_dev_sn_str == active_sn); // the string turned on should be the one requested
 
-    auto stream_profile_left = _profile->get_stream(_stereo_stream_type,1);
-    auto stream_profile_right = _profile->get_stream(_stereo_stream_type,2);
-    auto video_profile_left = stream_profile_left.as<rs2::video_stream_profile>();
-    
+    auto stream_profiles = _profile->get_streams();
 
-    std::cout << std::endl << "Realsense Hardware Intrinsics:" << std::endl;
+    for (const auto& stream_profile : stream_profiles)
+    {
+        auto stream = stream_profile.stream_type();
+        if (stream == _stereo_stream_type)
+            is_streaming_stereo = true;
+        else if (stream == RS2_STREAM_DEPTH)
+            is_streaming_depth = true;
+        else if (stream == RS2_STREAM_COLOR)
+            is_streaming_color = true;
+    }
 
-    _intrinsics =  video_profile_left.get_intrinsics();
-    auto _hz = video_profile_left.fps();
+    if (is_streaming_stereo)
+    {
+        auto stream_profile_left = _profile->get_stream(_stereo_stream_type,1);
+        auto stream_profile_right = _profile->get_stream(_stereo_stream_type,2);
+        auto video_profile_left = stream_profile_left.as<rs2::video_stream_profile>();
+        auto video_profile_right = stream_profile_right.as<rs2::video_stream_profile>();
+        
 
-    
-    std::cout   << "fx= " << _intrinsics.fx// 1.88mm focal length?
-                << ", fy= " << _intrinsics.fy << std::endl
-                << "width= " << _intrinsics.width // 1.4um pixel size
-                << ", height= " << _intrinsics.height << std::endl
-                << "ppx= " << _intrinsics.ppx // principal point
-                << ", ppy= " << _intrinsics.ppy << std::endl
-                << "model= " << rs2_distortion_to_string(_intrinsics.model) << std::endl
-                << "hz= " << _hz << std::endl;
+        std::cout << std::endl << "Realsense Stereo Intrinsics:" << std::endl;
 
-    _extrinsics_left_to_right = stream_profile_left.get_extrinsics_to(stream_profile_right); // baseline 55mm?
+        _stereo_left_intrinsics =  video_profile_left.get_intrinsics();
+        _stereo_right_intrinsics = video_profile_right.get_intrinsics();
 
-    print(_extrinsics_left_to_right);
+        _extrinsics_left_to_right = stream_profile_left.get_extrinsics_to(stream_profile_right); // baseline 55mm?
 
-    _baseline = -_extrinsics_left_to_right.translation[0]; // x-axis
+        print(_extrinsics_left_to_right);
 
-    // _baseline = _stereo->get_option(RS2_OPTION_STEREO_BASELINE) / 1000.0 ; // convert from mm to meter
+        _baseline = -_extrinsics_left_to_right.translation[0]; // x-axis
 
-    std::cout << std::endl << "Realsense Hardware Extrinsics (left to right)" << std::endl
-                << "translation: ";
-    
-    for (const auto& element : _extrinsics_left_to_right.translation ) 
-                std::cout  << element << ", ";
+        // _baseline = _stereo->get_option(RS2_OPTION_STEREO_BASELINE) / 1000.0 ; // convert from mm to meter
 
-    std::cout << std::endl << "rotation: ";
-    for (const auto& element : _extrinsics_left_to_right.rotation ) 
-                std::cout  << element << ", ";
-    std::cout << std::endl;
+        std::cout << std::endl << "Realsense Hardware Extrinsics (left to right)" << std::endl
+                    << "translation: ";
+        
+        for (const auto& element : _extrinsics_left_to_right.translation ) 
+                    std::cout  << element << ", ";
 
-    std::cout << "baseline: " << _baseline << std::endl;
+        std::cout << std::endl << "rotation: ";
+        for (const auto& element : _extrinsics_left_to_right.rotation ) 
+                    std::cout  << element << ", ";
+        std::cout << std::endl;
+
+        std::cout << "baseline: " << _baseline << std::endl;
+    }
+
+    if (is_streaming_depth)
+    {
+        auto stream_profile_depth = _profile->get_stream(RS2_STREAM_DEPTH);
+        auto video_profile_depth = stream_profile_depth.as<rs2::video_stream_profile>();
+
+        _depth_intrinsics = video_profile_depth.get_intrinsics();
+
+        std::cout << std::endl << "Obtained Depth Intrinsics" << std::endl;
+
+        std::cout << "Depth scale: " << _depth->get_depth_scale() << " (meter = pixel * scale)"<< std::endl;
+    }
+
+    if (is_streaming_color)
+    {
+        
+        auto stream_profile_color = _profile->get_stream(RS2_STREAM_COLOR);
+        auto video_profile_color = stream_profile_color.as<rs2::video_stream_profile>();
+
+        _color_intrinsics = video_profile_color.get_intrinsics();
+
+        std::cout << std::endl << "Obtained Color Intrinsics" << std::endl;
+    }
+   
 }
 
-rs2_intrinsics StereoDriver::get_intrinsics() const
+void StereoDriver::get_stereo_intrinsics(rs2_intrinsics& stereo_left_intrinsics, rs2_intrinsics& stereo_right_intrinsics)
 {
-    return _intrinsics;
+    stereo_left_intrinsics = _stereo_left_intrinsics;
+    stereo_right_intrinsics = _stereo_left_intrinsics;
 }
 
 rs2_extrinsics StereoDriver::get_extrinsics_left_to_right() const
@@ -384,6 +436,16 @@ rs2_extrinsics StereoDriver::get_extrinsics_left_to_right() const
 float StereoDriver::get_baseline() const
 {
     return _baseline;
+}
+
+rs2_intrinsics StereoDriver::get_depth_intrinsics() const
+{
+    return _depth_intrinsics;
+}
+
+rs2_intrinsics StereoDriver::get_color_intrinsics() const
+{
+    return _color_intrinsics;
 }
 
 void StereoDriver::stopPipe()
@@ -410,108 +472,127 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
     // With callbacks, all synchronized stream will arrive in a single frameset
     if(rs2::frameset dataset = frame.as<rs2::frameset>())
     {
-        num_stereo_frames++;
-        int num_frames = dataset.size();
-        if (num_frames != 2)
-        {
-            std::cerr << "frameset contains " << num_frames << "frames, should be 2."<< std::endl;
-            throw std::runtime_error("Non stereo frames");
-        }
-            
-        const rs2_stream stream_type = dataset.get_profile().stream_type();
+        num_framesets++;
 
-        rs2::video_frame frame_left = (stream_type == RS2_STREAM_INFRARED) ? dataset.get_infrared_frame(1) : dataset.get_fisheye_frame(1);
-        rs2::video_frame frame_right = (stream_type == RS2_STREAM_INFRARED) ? dataset.get_infrared_frame(2) : dataset.get_fisheye_frame(2);
-        
-        double time_left = frame_left.get_timestamp()/1000;
-        uint64_t seq_left = frame_left.get_frame_number();
+        // obtain metadata
+        double meta_time = dataset.get_timestamp()/1000;
+        uint64_t meta_seq = dataset.get_frame_number();
+
+        // std::cout << uint64_t(meta_time * 1e9) << std::endl;
 
         // Check for frame seq jitter
-        if (num_stereo_frames > 1){
-            if (last_stereo_seq + 1 != seq_left){
-                std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << seq_left - last_stereo_seq - 1 << ") frame(s)." << std::endl;
+        if (num_framesets > 1){
+            if (last_frameset_seq == meta_seq)
+            {
+                std::cerr << "SN" << _dev_sn_str << "Duplicated frameCallback frameset seq = " << meta_seq << ", Skipping" << std::endl;
+                return;
+            }
+            if (last_frameset_seq + 1 != meta_seq){
+                std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << meta_seq - last_frameset_seq - 1 << ") frame(s). Current = " << meta_seq << " Previous = " << last_frameset_seq << std::endl;
+            }
+        }
+        last_frameset_seq = meta_seq;
+
+        if (num_framesets == 1)
+        {
+            auto meta_timedomain = dataset.get_frame_timestamp_domain();
+            std::cout << "First Frameset: " << last_frameset_seq << ", time = " << (uint64_t) (meta_time * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
+        }
+
+
+        // Check if depth frame is present
+        rs2::depth_frame frame_depth = dataset.get_depth_frame();
+        if (frame_depth)
+        {
+            // std::cout << uint64_t(frame_depth.get_timestamp()*1e6) << "depth" << std::endl;
+            assert(meta_time == frame_depth.get_timestamp()/1000); // frameset timestamp is always the first sensor, depth sensor
+            assert(meta_seq == frame_depth.get_frame_number());
+
+            const int depth_bpp = frame_depth.get_bytes_per_pixel();
+            const int depth_width = frame_depth.get_width();
+            const int depth_height = frame_depth.get_height();
+            char* depth_data = new char[depth_width*depth_height*depth_bpp];
+            memcpy(depth_data, frame_depth.get_data(), depth_width*depth_height*depth_bpp);
+
+            const float depth_scale = _depth->get_depth_scale();
+
+            DepthDataType data = {"Depth", depth_data, depth_width, depth_height, depth_bpp, depth_scale, meta_time, meta_seq};
+            for (callbackDepth& cb : _cblist_depth){
+                (cb)(data);
             }
         }
 
-        last_stereo_seq = seq_left;
-
-
-        if (num_stereo_frames == 1)
+        // Check if color frame is present
+        rs2::video_frame frame_color = dataset.get_color_frame();
+        if (frame_color)
         {
-            auto meta_timedomain = frame_left.get_frame_timestamp_domain();
-            std::cout << "First stereo: " << last_stereo_seq << ", time = " << (uint64_t) (time_left * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
+            // std::cout << uint64_t(frame_color.get_timestamp()*1e6) << "color" << std::endl;
+            // assert(meta_time == frame_color.get_timestamp()/1000);
+            // assert(meta_seq == frame_color.get_frame_number());
+
+            double time = frame_color.get_timestamp()/1000;
+            uint64_t seq = frame_color.get_frame_number();
+
+            const int color_bpp = frame_color.get_bytes_per_pixel();
+            const int color_width = frame_color.get_width();
+            const int color_height = frame_color.get_height();
+            char* color_data = new char[color_width*color_height*color_bpp];
+            memcpy(color_data, frame_color.get_data(), color_width*color_height*color_bpp);
+
+            ColorDataType data = {"Color", color_data, color_width, color_height, color_bpp, time, seq};
+            for (callbackColor& cb : _cblist_color){
+                (cb)(data);
+            }
         }
 
-        int w = frame_left.get_width();
-        int h = frame_left.get_height();
+        // Check if stereo frame is present
+        rs2::video_frame frame_left = dataset.get_infrared_frame(1);
+        if (!frame_left)
+            frame_left = dataset.get_fisheye_frame(1);
 
-        // Refer to https://github.com/IntelRealSense/librealsense/issues/2188
-        //metadata in usec
+        rs2::video_frame frame_right = dataset.get_infrared_frame(2);
+        if (!frame_right)
+            frame_right = dataset.get_fisheye_frame(2);
 
-        int meta_exposure = 0;
-        if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE))
-            meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
-        else if(num_stereo_frames == 1)
-            std::cout << "[ERROR] Stereo does not support metadata actual exposure get" << std::endl;
+        if (frame_left && frame_right)
+        {
+            double time_left = frame_left.get_timestamp()/1000;
+            double time_right = frame_right.get_timestamp()/1000;
 
-        int meta_gain = -1;
-        if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL))
-            meta_gain = frame_left.get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
-        else if(num_stereo_frames == 1)
-            std::cout << "[ERROR] Stereo does not support metadata gain level get" << std::endl;
-    
-        uint64_t mid_shutter_time_estimate = 0;
+            uint64_t seq_left = frame_left.get_frame_number();
+            uint64_t seq_right = frame_right.get_frame_number();
 
-        //// NO LONGER NEEDED DUE TO FIRMWARE UPDATE FOR GLOBAL TIME IMPLEMENTATION FROM LIBREALSENSE
+            if (seq_left != seq_right)
+                std::cerr << "seq_left != seq_right" << std::endl;
 
-        // if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP) 
-        //     && frame_left.supports_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP))
-        // {
-        //     auto meta_sensortime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP); // middle of shutter
-        //     auto meta_frametime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP); // start UVC frame tx
-        //     // uint64_t meta_toa = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL); // kernel to user space
-        //     uint64_t meta_backendtime = frame_left.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP); // usb controller to kernel , in millisecond?
+            int w = frame_left.get_width();
+            int h = frame_left.get_height();
 
-        //     const uint64_t delay_sensor_to_frame = meta_frametime - meta_sensortime;
-        //     // 1e7; // 10us delay, RS2_FRAME_METADATA_FRAME_TIMESTAMP - RS2_FRAME_METADATA_SENSOR_TIMESTAMP
-        //     // std::cout << std::fixed << "delay_sensor_to_frame"<< delay_sensor_to_frame << "us" << std::endl;
-        //     // std::cout << "meta_backendtime" << meta_backendtime << std::endl;
-        //     // uint64_t delay_uvc_to_frontend = meta_toa - meta_backendtime ; // ~16000us delay meta_toa - meta_backendtime
+            int meta_exposure = 0;
+            if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE))
+                meta_exposure = frame_left.get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
+            else if(num_framesets == 1)
+                std::cout << "[ERROR] Stereo does not support metadata actual exposure get" << std::endl;
 
-        //     mid_shutter_time_estimate = meta_backendtime * 1e6 - delay_sensor_to_frame* 1e3; // in nanosecond, epoch time
-        // }else
-        // {
-        //     mid_shutter_time_estimate = frame_left.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL) * 1e6;
-        //     // std::cout << mid_shutter_time_estimate << std::endl;
-        // }
+            int meta_gain = -1;
+            if (frame_left.supports_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL))
+                meta_gain = frame_left.get_frame_metadata(RS2_FRAME_METADATA_GAIN_LEVEL);
+            else if(num_framesets == 1)
+                std::cout << "[ERROR] Stereo does not support metadata gain level get" << std::endl;
         
-        double time_right = frame_right.get_timestamp()/1000;
-        uint64_t seq_right = frame_right.get_frame_number();
 
-        if(seq_left != seq_right)
-            std::cout << "WARN: seq_left != seq_right" << std::endl;
+            const int bpp = frame_left.get_bytes_per_pixel();
+            char* irleft = new char[w*h*bpp];
+            memcpy(irleft,frame_left.get_data(),w*h*bpp);
 
-        //metadata
-        // auto meta_toa2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL);
-        // auto meta_sensortime2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_SENSOR_TIMESTAMP);
-        // auto meta_frametime2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP);
-        // auto meta_backendtime2 = frame_right.get_frame_metadata(RS2_FRAME_METADATA_BACKEND_TIMESTAMP);
+            char* irright = new char[w*h*bpp];
+            memcpy(irright,frame_right.get_data(),w*h*bpp);
 
-        // uint64_t delay_uvc_to_frontend2 = meta_toa2 - meta_backendtime2;
-        // std::cout << delay_uvc_to_frontend << "  " << delay_uvc_to_frontend2 << std::endl;
-
-        
-        char* irleft = new char[w*h];
-        memcpy(irleft,frame_left.get_data(),w*h);
-
-        char* irright = new char[w*h];
-        memcpy(irright,frame_right.get_data(),w*h);
-
-        StereoDataType data = {mid_shutter_time_estimate, irleft, irright, w, h, time_left, time_right, seq_left, seq_right, meta_exposure, meta_gain, false};
-        for (callbackStereo& cb : _cblist_stereo){
-            (cb)(data);
+            StereoDataType data = {"Stereo", irleft, irright, w, h, bpp, time_left, time_right, seq_left, seq_right, meta_exposure, meta_gain, false};
+            for (callbackStereo& cb : _cblist_stereo){
+                (cb)(data);
+            }
         }
-        
 
     }else if (rs2::pose_frame pose = frame.as<rs2::pose_frame>()){
         num_pose_frames++;
@@ -660,6 +741,16 @@ rs2::option_range StereoDriver::getOptionRange(rs2_option option)
 void StereoDriver::registerCallback(callbackStereo cb)
 {
     _cblist_stereo.push_back(cb);
+}
+
+void StereoDriver::registerCallback(callbackDepth cb)
+{
+    _cblist_depth.push_back(cb);
+}
+
+void StereoDriver::registerCallback(callbackColor cb)
+{
+    _cblist_color.push_back(cb);
 }
 
 void StereoDriver::registerCallback(callbackGyro cb)

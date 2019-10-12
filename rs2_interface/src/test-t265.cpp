@@ -39,7 +39,7 @@ void stereoImageCallback(StereoDriver::StereoDataType data) // irleft and irrigh
 
         if (data.seq_left == 1)
         {
-            stereo_frame.t_base = data.mid_shutter_time_estimate;
+            stereo_frame.t_base = data.time_left;
         }
         else
         {
