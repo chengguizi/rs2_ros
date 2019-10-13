@@ -136,7 +136,7 @@ bool StereoDriver::init()
     // Using the context we can get all connected devices in a device list
     // _ctx.query_devices();
     auto devices = _ctx.query_devices();
-    
+
     if (devices.size() == 0)
     {
         std::cerr << "No device connected, please connect a RealSense device" << std::endl;
@@ -406,7 +406,6 @@ void StereoDriver::startPipe()
 
         std::cout << std::endl << "Obtained Depth Intrinsics" << std::endl;
 
-        std::cout << "Depth scale: " << _depth->get_depth_scale() << " (meter = pixel * scale)"<< std::endl;
     }
 
     if (is_streaming_color)
@@ -480,23 +479,10 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
 
         // std::cout << uint64_t(meta_time * 1e9) << std::endl;
 
-        // Check for frame seq jitter
-        if (num_framesets > 1){
-            if (last_frameset_seq == meta_seq)
-            {
-                std::cerr << "SN" << _dev_sn_str << "Duplicated frameCallback frameset seq = " << meta_seq << ", Skipping" << std::endl;
-                return;
-            }
-            if (last_frameset_seq + 1 != meta_seq){
-                std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << meta_seq - last_frameset_seq - 1 << ") frame(s). Current = " << meta_seq << " Previous = " << last_frameset_seq << std::endl;
-            }
-        }
-        last_frameset_seq = meta_seq;
-
         if (num_framesets == 1)
         {
             auto meta_timedomain = dataset.get_frame_timestamp_domain();
-            std::cout << "First Frameset: " << last_frameset_seq << ", time = " << (uint64_t) (meta_time * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
+            std::cout << "First Frameset: " << meta_seq << ", time = " << (uint64_t) (meta_time * 1e9) << ", with time domain "<< meta_timedomain << std::endl;
         }
 
 
@@ -508,6 +494,18 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
             assert(meta_time == frame_depth.get_timestamp()/1000); // frameset timestamp is always the first sensor, depth sensor
             assert(meta_seq == frame_depth.get_frame_number());
 
+            // Check for frame seq jitter
+            if (num_framesets > 1){
+                if (last_depth_seq == meta_seq)
+                {
+                    std::cerr << "SN" << _dev_sn_str << ": Duplicated frameCallback Depth seq = " << meta_seq << ", Skipping" << std::endl;
+                }
+                if (last_depth_seq + 1 != meta_seq){
+                    std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << meta_seq - last_depth_seq - 1 << ") Depth frame(s). Current = " << meta_seq << " Previous = " << last_depth_seq << std::endl;
+                }
+            }
+            last_depth_seq = meta_seq;
+
             const int depth_bpp = frame_depth.get_bytes_per_pixel();
             const int depth_width = frame_depth.get_width();
             const int depth_height = frame_depth.get_height();
@@ -515,6 +513,9 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
             memcpy(depth_data, frame_depth.get_data(), depth_width*depth_height*depth_bpp);
 
             const float depth_scale = _depth->get_depth_scale();
+
+            if (num_framesets == 1)
+                std::cout << "Depth scale: " << depth_scale << " (meter = pixel * scale)"<< std::endl;
 
             DepthDataType data = {"Depth", depth_data, depth_width, depth_height, depth_bpp, depth_scale, meta_time, meta_seq};
             for (callbackDepth& cb : _cblist_depth){
@@ -564,6 +565,17 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
 
             if (seq_left != seq_right)
                 std::cerr << "seq_left != seq_right" << std::endl;
+
+            if (num_framesets > 1){
+                if (last_stereo_seq == seq_left)
+                {
+                    std::cerr << "SN" << _dev_sn_str << ": Duplicated frameCallback Depth seq = " << seq_left << ", Skipping" << std::endl;
+                }
+                if (last_stereo_seq + 1 != seq_left){
+                    std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << seq_left - last_stereo_seq - 1 << ") Depth frame(s). Current = " << seq_left << " Previous = " << last_stereo_seq << std::endl;
+                }
+            }
+            last_stereo_seq = seq_left;
 
             int w = frame_left.get_width();
             int h = frame_left.get_height();
@@ -688,7 +700,7 @@ void StereoDriver::setOption(rs2_option option, const float value, bool force)
     {
         float value_get = getOption(option);
         if (value_get != value)
-            throw std::runtime_error("setOption() failed: value assertion, requested " + std::to_string(value) + ", but gotten "  + std::to_string(value_get));
+            throw std::runtime_error("setOption(" + std::string(rs2_option_to_string(option)) + ") failed: value assertion, requested " + std::to_string(value) + ", but gotten "  + std::to_string(value_get));
     }
         
 }

@@ -174,7 +174,7 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
 
     if (param.do_publish_color)
     {
-        sys->enableColorStream();
+        sys->enableColorStream(param.width, param.height, param.hz);
         sys->registerCallback(std::bind(&CameraManager::setFrame<StereoDriver::ColorDataType, MtxColorFrame, sensor_msgs::CameraInfo>, this, std::placeholders::_1, &this->mtxColorFrame, &this->cameraInfo_color));
 
         pub_color = new ImagePublisher(nh_local, "color/image_raw");
@@ -306,7 +306,7 @@ void CameraManager::setFrame(const T& frame, M* mtxFrame, C* cameraInfo)
         mtxFrame->cv.notify_one();
     }else
     {
-        std::cerr << param.topic_ns << ": Missing Frame " << mtxFrame->frame.seq << std::endl;
+        std::cerr << param.topic_ns << ": Missing "<< frame.name << " Frame " << mtxFrame->frame.seq << std::endl;
     }
 }
 
@@ -455,9 +455,10 @@ void CameraManager::processStereoFrame()
 
             if (param_exposure != frame.exposure || param_gain != frame.gain)
             {
+                ROS_INFO_STREAM_THROTTLE(0.5, "New settings: exposure=" << param_exposure << " , gain=" << param_gain );
                 sys->setOption(RS2_OPTION_EXPOSURE, param_exposure);
                 sys->setOption(RS2_OPTION_GAIN, param_gain);
-                ROS_INFO_STREAM_THROTTLE(0.5, "New settings: exposure=" << param_exposure << " , gain=" << param_gain );
+               
             }
         }
         

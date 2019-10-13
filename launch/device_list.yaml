@@ -19,19 +19,19 @@ stereo:
 stereo2: 
   type: d400 # for loading type specific yaml
   sn: '843112072452' # D435i
-  stereo: true
+  stereo: false
   depth: true
-  color: true
-  poseimu: true
+  color: false
+  poseimu: false
   auto_exposure_mode: manual
   hardware_synchronisation_mode: master
 
 stereo3: 
   type: d400 # for loading type specific yaml
   sn: '912112071531' # D435i
-  stereo: true
+  stereo: false
   color: false
-  depth: false
+  depth: true
   poseimu: false
   auto_exposure_mode: manual
   hardware_synchronisation_mode: slave
@@ -39,8 +39,8 @@ stereo3:
 stereo4: 
   type: d400 # for loading type specific yaml
   sn: '912112071518' # D435i
-  stereo: true
-  depth: false
+  stereo: false
+  depth: true
   poseimu: false
   auto_exposure_mode: manual
   hardware_synchronisation_mode: slave
@@ -48,8 +48,8 @@ stereo4:
 stereo5: 
   type: d400 # for loading type specific yaml
   sn: '912112073894' # D435i
-  stereo: true
-  depth: false
+  stereo: false
+  depth: true
   poseimu: false
   auto_exposure_mode: manual
   hardware_synchronisation_mode: slave

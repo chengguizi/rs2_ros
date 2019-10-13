@@ -207,7 +207,8 @@ private:
     bool initialised;
     bool init();
     uint64_t num_framesets = 0, num_pose_frames = 0, num_gyro_frames = 0, num_accel_frames = 0;
-    uint64_t last_frameset_seq = 0, last_pose_seq = 0, last_gyro_seq = 0, last_accel_seq = 0;
+    uint64_t last_stereo_seq = 0, last_depth_seq = 0, last_color_seq = 0;
+    uint64_t last_pose_seq = 0, last_gyro_seq = 0, last_accel_seq = 0;
     void frameCallback(const rs2::frame& frame);
     void imuCallback(const SyncedIMUDataType& data);
 
@@ -229,6 +230,7 @@ private:
     rs2_extrinsics _extrinsics_left_to_right;
     float _baseline;
 
+    // bool _initial_reset = true;
     bool is_streaming_stereo = false;
     bool is_streaming_depth = false;
     bool is_streaming_color = false;
