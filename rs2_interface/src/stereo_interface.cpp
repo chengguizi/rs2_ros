@@ -232,7 +232,6 @@ bool StereoDriver::init()
         _color = new auto(sensors[found_color]);
 
     std::cout << "Stereo Sensor initialised successfully!" << std::endl;
-    std::cout << "=======================================" << std::endl << std::endl;
 
     return true;
 }
@@ -498,7 +497,7 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
             if (num_framesets > 1){
                 if (last_depth_seq == meta_seq)
                 {
-                    std::cerr << "SN" << _dev_sn_str << ": Duplicated frameCallback Depth seq = " << meta_seq << ", Skipping" << std::endl;
+                    std::cerr << "SN" << _dev_sn_str << ": Duplicated frameCallback Depth seq = " << meta_seq << std::endl;
                 }
                 if (last_depth_seq + 1 != meta_seq){
                     std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << meta_seq - last_depth_seq - 1 << ") Depth frame(s). Current = " << meta_seq << " Previous = " << last_depth_seq << std::endl;
@@ -569,10 +568,10 @@ void StereoDriver::frameCallback(const rs2::frame& frame)
             if (num_framesets > 1){
                 if (last_stereo_seq == seq_left)
                 {
-                    std::cerr << "SN" << _dev_sn_str << ": Duplicated frameCallback Depth seq = " << seq_left << ", Skipping" << std::endl;
+                    std::cerr << "SN" << _dev_sn_str << ": Duplicated frameCallback Stereo seq = " << seq_left << std::endl;
                 }
                 if (last_stereo_seq + 1 != seq_left){
-                    std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << seq_left - last_stereo_seq - 1 << ") Depth frame(s). Current = " << seq_left << " Previous = " << last_stereo_seq << std::endl;
+                    std::cerr << "SN" << _dev_sn_str << ": USB Backend misses (" << seq_left - last_stereo_seq - 1 << ") Stereo frame(s). Current = " << seq_left << " Previous = " << last_stereo_seq << std::endl;
                 }
             }
             last_stereo_seq = seq_left;
@@ -718,7 +717,7 @@ float StereoDriver::getOption(rs2_option option)
 
 void StereoDriver::enableAE(uint32_t meanIntensitySetPoint)
 {
-    setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1);
+    setOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE,1, false);
 
     if (!_dev->supports(RS2_CAMERA_INFO_ADVANCED_MODE)){
         std::cout << "enableAE(): Advance Mode for Exposure not Available..." << std::endl;

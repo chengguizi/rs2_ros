@@ -30,8 +30,8 @@ stereo3:
   type: d400 # for loading type specific yaml
   sn: '912112071531' # D435i
   stereo: false
-  color: false
   depth: true
+  color: false
   poseimu: false
   auto_exposure_mode: manual
   hardware_synchronisation_mode: slave
@@ -69,4 +69,4 @@ fisheye:
   stereo: true
   depth: false
   poseimu: true
-  auto_exposure_mode: manual # custom
+  auto_exposure_mode: internal # custom

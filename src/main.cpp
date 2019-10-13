@@ -26,7 +26,6 @@ int main(int argc, char * argv[])
         else
         {
             camera.reset();
-            std::cerr << "Initialise SN: " << camera_ns << " Failed" << std::endl;
         }
     }
 

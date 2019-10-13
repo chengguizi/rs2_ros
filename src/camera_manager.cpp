@@ -71,6 +71,7 @@ void CameraParam::loadExposureControlParam(const std::string& type)
 
 CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
 {
+    std::cout << std::endl << "==========================================" << std::endl;
     std::cout << "Creating CameraManager for " << topic_ns << std::endl;
     //// Obtain all params associated with the topic_ns
     param.loadParam(topic_ns);
@@ -88,22 +89,28 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
     }
 
     //// Configure Laser Emitter
-    if (param.laser_power > 0){
-        std::cout << "Enable Laser Emitter, with power = " << param.laser_power << std::endl;
-        sys->setOption(RS2_OPTION_EMITTER_ENABLED,1);
-        sys->setOption(RS2_OPTION_LASER_POWER, param.laser_power);
+    if (param.type == "d400")
+    {
+        if (param.laser_power > 0){
+            std::cout << "Enable Laser Emitter, with power = " << param.laser_power << std::endl;
+            sys->setOption(RS2_OPTION_EMITTER_ENABLED,1);
+            sys->setOption(RS2_OPTION_LASER_POWER, param.laser_power);
 
-        if (param.do_alternate_laser_emitter){
-            std::cout << "Do Alternating Laser Emitter" << std::endl;
-            sys->setOption(RS2_OPTION_EMITTER_ON_OFF, 1);
+            if (param.do_alternate_laser_emitter){
+                std::cout << "Do Alternating Laser Emitter" << std::endl;
+                sys->setOption(RS2_OPTION_EMITTER_ON_OFF, 1);
+            }
+            
+        }else{
+            std::cout << "Disable Laser Emitter" << std::endl;
+            sys->setOption(RS2_OPTION_EMITTER_ENABLED,0);
         }
-        
-    }else{
-        std::cout << "Disable Laser Emitter" << std::endl;
-        sys->setOption(RS2_OPTION_EMITTER_ENABLED,0);
-    }
 
-    setSyncMode();
+        setSyncMode();
+    }
+        
+
+    
     
     //// Configure Auto Exposure
     if (param.auto_exposure_mode == "internal"){
