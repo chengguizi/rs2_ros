@@ -43,9 +43,18 @@ void CameraParam::loadParam(const std::string& topic_ns)
     nh_type.getParam("width",width);
     nh_type.getParam("height",height);
     nh_type.getParam("frame_rate",hz);
-    nh_type.getParam("laser_power",laser_power);
-    nh_type.getParam("alternate_laser_emitter", do_alternate_laser_emitter);
 
+    if (type == "d400")
+    {
+        nh_type.getParam("laser_power",laser_power);
+        nh_type.getParam("alternate_laser_emitter", do_alternate_laser_emitter);
+    }
+
+    if (type == "t265")
+    {
+        nh_type.getParam("pose_coordinate", pose_coordinate);
+    }
+    
 }
 
 void CameraParam::loadExposureControlParam(const std::string& type)
@@ -161,7 +170,34 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
     {
         sys->enablePoseMotionStream();
         if (param.type == "t265")
-            sys->registerCallback(std::bind(&CameraManager::callbackSyncedIMU_t265,this, std::placeholders::_1));
+        {
+            sys->registerCallback(std::bind(&CameraManager::callbackSyncedIMU_t265, this, std::placeholders::_1));
+            sys->registerCallback(std::bind(&CameraManager::callbackPose_t265, this, std::placeholders::_1));
+            pub_pose = new PosePublisher(nh_local);
+            
+            double* R = nullptr;
+            if (param.pose_coordinate == "VO") // from right-up-back to right-down-front
+            {
+                ROS_WARN("T265 is using VO right-down-front coordinates");
+                R = new double[9]{1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0};
+            }
+            else if (param.pose_coordinate == "ROS")
+            {
+                ROS_WARN("T265 is using ROS NWU coordinates");
+                R = new double[9]{0.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0}; // from right-up-back to NWU
+                // 0 -1 0 
+                // 0 0 1
+                // -1 0 0
+            }
+                
+
+            if (R)
+            {
+                pub_pose->doStaticTransform(R);
+                delete [] R;
+            }
+                
+        }
         else if (param.type == "d400")
             sys->registerCallback(std::bind(&CameraManager::callbackSyncedIMU_d400,this, std::placeholders::_1));
         else{
@@ -356,6 +392,14 @@ void CameraManager::callbackSyncedIMU_t265(const StereoDriver::SyncedIMUDataType
     float gyro[3] = {-data.gx, -data.gy, data.gz}; // change of coordinates, https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md
     float accel[3] = {-data.ax, -data.ay, data.az}; // change of coordinates
     pub_imu->publish(gyro, accel, ros::Time(data.timestamp), data.seq);
+}
+
+void CameraManager::callbackPose_t265(const StereoDriver::PoseDataType& data)
+{
+    float position[3] = {data.pose.translation.x, data.pose.translation.y, data.pose.translation.z};
+    float orientation[4] = {data.pose.rotation.w, data.pose.rotation.x, data.pose.rotation.y, data.pose.rotation.z};
+
+    pub_pose->publish(position, orientation, "map", ros::Time(data.timestamp), data.seq);
 }
 
 void CameraManager::callbackSyncedIMU_d400(const StereoDriver::SyncedIMUDataType& data)

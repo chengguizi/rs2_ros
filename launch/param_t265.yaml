@@ -8,7 +8,6 @@ initial_gain: 5
 exposure_max: 12000
 gain_max: 10
 exposure_mean_intensity_setpoint: 1800
-laser_power: 0
 
 exposure_change_rate: 1
 exposure_target_mean: 105
@@ -17,3 +16,5 @@ exposure_dead_region: 3
 exposure_a_min: 0.4
 exposure_a_max: 0.9
 exposure_c: 0.5
+
+pose_coordinate: ROS # VO (right-down-front) or ROS (NWU)

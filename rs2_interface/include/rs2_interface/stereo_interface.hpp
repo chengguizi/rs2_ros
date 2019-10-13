@@ -130,6 +130,7 @@ public:
     void registerCallback(callbackGyro cb);
     void registerCallback(callbackAccel cb);
     void registerCallback(callbackIMU cb);
+    void registerCallback(callbackPose cb);
 private:
     
     // The following struct assumes accel is always arriving slower than gyro, and at a lower frequency than gyro

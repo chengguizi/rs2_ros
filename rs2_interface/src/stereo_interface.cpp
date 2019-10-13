@@ -778,3 +778,8 @@ void StereoDriver::registerCallback(callbackIMU cb)
 {
     _cblist_imu.push_back(cb);
 }
+
+void StereoDriver::registerCallback(callbackPose cb)
+{
+    _cblist_pose.push_back(cb);
+}

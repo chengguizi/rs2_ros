@@ -24,8 +24,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 find_package(catkin REQUIRED COMPONENTS 
   roscpp
   std_msgs
+  geometry_msgs
   image_transport
   cv_bridge
+  tf2
 
   message_generation
 )

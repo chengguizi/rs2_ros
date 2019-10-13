@@ -39,6 +39,8 @@ public:
     std::string auto_exposure_mode = "internal";
     int auto_exposure_mean_intensity_setpoint = 1800;
 
+    std::string pose_coordinate;
+
     // Exposure control param
     int initial_exposure, initial_gain;
     int exposure_max, gain_max;
@@ -83,6 +85,7 @@ private:
     ImagePublisher* pub_depth;
     ImagePublisher* pub_color;
     IMUPublisher* pub_imu;
+    PosePublisher* pub_pose;
     ros::Publisher pub_stats;
 
     ExposureControl* expo_ctl;
@@ -118,6 +121,7 @@ private:
     void setStereoFrame(const StereoDriver::StereoDataType& frame);
 
     void callbackSyncedIMU_t265(const StereoDriver::SyncedIMUDataType& data);
+    void callbackPose_t265(const StereoDriver::PoseDataType& data);
     void callbackSyncedIMU_d400(const StereoDriver::SyncedIMUDataType& data);
 };
 

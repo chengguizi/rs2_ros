@@ -8,6 +8,8 @@
 #include <sensor_msgs/Imu.h>
 #include <cv_bridge/cv_bridge.h>
 
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <iostream>
 
 #define BUFFER_SIZE 20
@@ -113,4 +115,52 @@ void IMUPublisher::publish(const float gyro[3], const float accel[3], const ros:
 
     _pub.publish(data);
     
+}
+
+PosePublisher::PosePublisher()
+{
+    PosePublisher(ros::NodeHandle("~"));
+}
+
+PosePublisher::PosePublisher(const ros::NodeHandle& nh) : _nh(nh)
+{
+    _pub = _nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("pose_cov",BUFFER_SIZE);
+    std::cout << "Pose Cov Publisher initialised." << std::endl;
+}
+
+void PosePublisher::doStaticTransform(const double orintation[9])
+{
+    tf2::Matrix3x3 R(   orintation[0], orintation[1], orintation[2],
+                        orintation[3], orintation[4], orintation[5],
+                        orintation[6], orintation[7], orintation[8]);
+    _tf_static = new tf2::Transform(R);
+}
+
+void PosePublisher::publish(const float position[3], const float orientation[4], const std::string frame_id, const ros::Time timestamp, const uint64_t seq)
+{
+    geometry_msgs::PoseWithCovarianceStamped data;
+
+    data.header.stamp = timestamp;
+    data.header.seq = seq;
+
+    data.header.frame_id = frame_id;
+
+    data.pose.pose.position.x = position[0];
+    data.pose.pose.position.y = position[1];
+    data.pose.pose.position.z = position[2];
+
+    data.pose.pose.orientation.w = orientation[0];
+    data.pose.pose.orientation.x = orientation[1];
+    data.pose.pose.orientation.y = orientation[2];
+    data.pose.pose.orientation.z = orientation[3];
+
+    if (_tf_static)
+    {
+        tf2::Transform tf_pose;
+        tf2::fromMsg(data.pose.pose, tf_pose);
+
+        tf2::toMsg((*_tf_static).inverse() * tf_pose * (*_tf_static), data.pose.pose);
+    }
+
+    _pub.publish(data);
 }

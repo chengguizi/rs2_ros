@@ -60,4 +60,25 @@ class IMUPublisher
         ros::Publisher _pub;
 };
 
+namespace tf2
+{   
+    class Transform;
+}
+
+class PosePublisher
+{
+    public:
+        PosePublisher();
+        PosePublisher(const ros::NodeHandle& nh);
+
+        void doStaticTransform(const double orientation[9]); // Rotation matrix
+
+    void publish(const float position[3], const float orientation[4], const std::string frame_id, const ros::Time timestamp, const uint64_t seq);
+
+    private:
+        ros::NodeHandle _nh;
+        ros::Publisher _pub;
+        tf2::Transform* _tf_static = nullptr;
+};
+
 #endif /* ROS_PUBLISHER_H */
