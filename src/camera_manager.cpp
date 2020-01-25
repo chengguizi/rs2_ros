@@ -36,6 +36,7 @@ void CameraParam::loadParam(const std::string& topic_ns)
     nh_local.getParam("depth", do_publish_depth);
     nh_local.getParam("color", do_publish_color);
     nh_local.getParam("poseimu", do_publish_poseimu);
+    nh_local.getParam("loop_closure", do_loop_closure);
     nh_local.getParam("auto_exposure_mode", auto_exposure_mode); // internal, or custom
 
     // Obtain Type Specific Params
@@ -116,6 +117,22 @@ CameraManager::CameraManager(const std::string& topic_ns) : initialised(false)
         }
 
         setSyncMode();
+    }
+
+    //// Configure Loop Closure
+    if (param.type == "t265")
+    {
+        if (param.do_loop_closure){
+            sys->setOption(RS2_OPTION_ENABLE_MAPPING, 1);
+            sys->setOption(RS2_OPTION_ENABLE_RELOCALIZATION, 1);
+            sys->setOption(RS2_OPTION_ENABLE_POSE_JUMPING, 1);
+        }else{
+            
+            sys->setOption(RS2_OPTION_ENABLE_MAPPING, 0);
+            // sys->setOption(RS2_OPTION_ENABLE_RELOCALIZATION, 0);
+            // sys->setOption(RS2_OPTION_ENABLE_POSE_JUMPING, 0);    
+        }
+        std::cout << "Loop Closure is " << sys->getOption(RS2_OPTION_ENABLE_MAPPING) << std::endl;
     }
         
 

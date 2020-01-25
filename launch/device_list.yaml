@@ -69,4 +69,5 @@ fisheye:
   stereo: true
   depth: false
   poseimu: true
+  loop_closure: false
   auto_exposure_mode: internal # custom

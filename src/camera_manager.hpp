@@ -33,6 +33,7 @@ public:
     bool do_publish_color = false;
     bool do_publish_poseimu = false;
     bool do_alternate_laser_emitter = false;
+    bool do_loop_closure = false;
 
     int width = 0,height = 0,hz = 0;
     int laser_power = 0;
