@@ -19,7 +19,8 @@ int main() try
 {
 
     // Declare RealSense pipeline, encapsulating the actual device and sensors
-    rs2::pipeline pipe;
+    rs2::context _ctx = rs2::context(); 
+    rs2::pipeline pipe(_ctx);
 
     //Create a configuration for configuring the pipeline with a non default profile
     rs2::config cfg;
@@ -52,9 +53,13 @@ int main() try
     const auto window_name_r = "Display Image Right";
     namedWindow(window_name_r, WINDOW_AUTOSIZE);
 
-    while (waitKey(1) < 0)
+    std::cout << "Streaming" << std::endl;
+
+    while (true)
     {
         rs2::frameset data = pipe.wait_for_frames(); // Wait for next set of frames from the camera
+
+        std::cout << "Got Frame" << std::endl;
 
         rs2::video_frame irleft = data.get_fisheye_frame(1);
         rs2::video_frame irright = data.get_fisheye_frame(2);
@@ -70,9 +75,16 @@ int main() try
 
         // Update the window with new data
         //cvGetWindowHandle(window_name_l);
-        imshow(window_name_l, image_left);
+        cv::imshow(window_name_l, image_left);
         //cvGetWindowHandle(window_name_r);
-        imshow(window_name_r, image_right);
+        cv::imshow(window_name_r, image_right);
+
+        if (cv::waitKey(1) != 0xff)
+        {
+            std::cout << "Quit" << std::endl;
+            break;
+        }
+            
     }
 
     return EXIT_SUCCESS;
